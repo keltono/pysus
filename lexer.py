@@ -18,11 +18,18 @@ class Lex:
                 self.junk() #trash white space
             elif ch == '/':
                 self.junk()
-                if (not self.in_str) or self.in_str[0] != '/':
+                if (not self.in_str):
                     self.token_list.append(Token('kwd','/'))
                 else:
-                    self.junk()
-                    self.lex_comment()
+                    if self.in_str[0] == '/':
+                        self.junk()
+                        self.lex_comment()
+                    elif self.in_str[0] == '*':
+                        self.junk()
+                        self.lex_multi_comment()
+                    else:
+                        self.token_list.append(Token('kwd','/'))
+
 
             elif ch == '+': #TODO add +=
                 self.junk()
@@ -132,12 +139,9 @@ class Lex:
     def lex_comment(self):
         while(self.in_str[0] != '\n' and self.in_str[0] != '\r'):
             self.junk()
-
+    def lex_multi_comment(self):
+        while(self.in_str[0] != '*' and self.in_str[1] != '/'):
+            self.junk()
+        self.in_str = self.in_str[2:]
     def __str__(self):
         return ("{}".format(self.token_list))
-
-
-
-
-
-
