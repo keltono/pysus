@@ -6,7 +6,7 @@ in_file = open(sys.argv[1], "r")
 
 in_str = in_file.read()
 
-n_file.close()
+in_file.close()
 
 lex = lexer.Lex(in_str)
 

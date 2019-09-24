@@ -11,79 +11,77 @@ class Lex:
         self.in_str = self.in_str[1:] #returns the cdr of a seq
 
     def lex(self):
-        if len(self.in_str) == 0:
-            return self.token_list
-        ch = self.in_str[0]
-        if ch == ' ' or ch == '\n' or ch == '\r' or ch == '\t' : #all of these just add to the token list. do not return anything.
-            self.junk() #trash white space
-            self.lex()
 
-        elif ch == '/':
-            self.junk()
-            if (not self.in_str) or self.in_str[0] != '/':
-                self.token_list.append(Token('kwd','/'))
+        while(len(self.in_str) != 0):
+            ch = self.in_str[0]
+            if ch == ' ' or ch == '\n' or ch == '\r' or ch == '\t' : #all of these just add to the token list. do not return anything.
+                self.junk() #trash white space
+            elif ch == '/':
+                self.junk()
+                if (not self.in_str) or self.in_str[0] != '/':
+                    self.token_list.append(Token('kwd','/'))
+                else:
+                    self.junk()
+                    self.lex_comment()
+
+            elif ch == '+': #TODO add +=
+                self.junk()
+                self.token_list.append(Token('kwd', '+')) #all of these just add to the token list and don't return anything
+
+            elif ch == '-': #these only exist for the purpose of being extended later (e.g +=, *=). the current system would treat it this way by default
+                self.junk()
+                self.token_list.append(Token('kwd', '-'))
+
+            elif ch == '*':
+                self.junk()
+                self.token_list.append(Token('kwd', '*')) #always count this as binop? not sure.
+
+            elif ch == '%':
+                self.junk()
+                self.token_list.append(Token('kwd', '%'))
+
+            elif ch == '<':
+                self.junk()
+                if len(self.in_str) == 0:
+                    self.token_list.append(Token('kwd', '<'))
+                else:
+                    if self.in_str[0] == '=':
+                        self.junk()
+                        self.token_list.append(Token('binop', '<='))
+                    else:
+                        self.token_list.append(Token('kwd', '<'))
+
+            elif ch == '>':
+                self.junk()
+                if len(self.in_str) == 0:
+                    self.token_list.append(Token('kwd', '>'))
+                else:
+                    if self.in_str[0] == '=':
+                        self.junk()
+                        self.token_list.append(Token('binop', '>='))
+                    else:
+                        self.token_list.append(Token('kwd', '>'))
+
+            elif ch == '=':
+                self.junk()
+                if len(self.in_str) == 0:
+                    self.token_list.append(Token('kwd', '='))
+                else:
+                    if self.in_str[0] == '=':
+                        self.junk()
+                        self.token_list.append(Token('binop', '=='))
+                    else:
+                        self.token_list.append(Token('kwd', '='))
+
+            elif ch.isnumeric() or ch == ".":
+               self.lex_number()
+
+            elif ch.isalpha() or ch == '_':
+                self.lex_ident()
             else:
                 self.junk()
-                self.lex_comment()
-
-        elif ch == '+': #TODO add +=
-            self.junk()
-            self.token_list.append(Token('kwd', '+')) #all of these just add to the token list and don't return anything
-
-        elif ch == '-': #these only exist for the purpose of being extended later (e.g +=, *=). the current system would treat it this way by default
-            self.junk()
-            self.token_list.append(Token('kwd', '-'))
-
-        elif ch == '*':
-            self.junk()
-            self.token_list.append(Token('kwd', '*')) #always count this as binop? not sure.
-
-        elif ch == '%':
-            self.junk()
-            self.token_list.append(Token('kwd', '%'))
-
-        elif ch == '<':
-            self.junk()
-            if len(self.in_str) == 0:
-                self.token_list.append(Token('kwd', '<'))
-            else:
-                if self.in_str[0] == '=':
-                    self.junk()
-                    self.token_list.append(Token('binop', '<='))
-                else:
-                    self.token_list.append(Token('kwd', '<'))
-
-        elif ch == '>':
-            self.junk()
-            if len(self.in_str) == 0:
-                self.token_list.append(Token('kwd', '>'))
-            else:
-                if self.in_str[0] == '=':
-                    self.junk()
-                    self.token_list.append(Token('binop', '>='))
-                else:
-                    self.token_list.append(Token('kwd', '>'))
-
-        elif ch == '=':
-            self.junk()
-            if len(self.in_str) == 0:
-                self.token_list.append(Token('kwd', '='))
-            else:
-                if self.in_str[0] == '=':
-                    self.junk()
-                    self.token_list.append(Token('binop', '=='))
-                else:
-                    self.token_list.append(Token('kwd', '='))
-
-        elif ch.isnumeric() or ch == ".":
-           self.lex_number()
-
-        elif ch.isalpha() or ch == '_':
-            self.lex_ident()
-        else:
-            self.junk()
-            self.token_list.append(Token("kwd", ch))
-        return self.lex()
+                self.token_list.append(Token("kwd", ch))
+        return self.token_list
 
     def lex_ident(self):
         buff = ""
@@ -116,20 +114,23 @@ class Lex:
             self.token_list.append(Token('type','char'))
         else:
             self.token_list.append(Token('ident', buff))
-       #TODO: add: and, or for, null
+       #TODO: add: and, or, for, null
 
     def lex_number(self): #these also just add to the token list directly
         buff = ''
         while((self.in_str[0].isnumeric() or self.in_str[0] == '.') and self.in_str ):
             buff += self.in_str[0]
             self.junk()
-        if "." in buff: #TODO: check if there is more than 1 '.' in the buff
-            self.token_list.append(Token("float", float(buff)))
+        if "." in buff:
+            if buff.count('.') > 1:
+                print("error! more than 1 period in number!") #TODO error handle for real
+            else:
+                self.token_list.append(Token("float", float(buff)))
         else:
             self.token_list.append(Token("int", int(buff)))
 
     def lex_comment(self):
-        while(self.in_str != '\n' and self.in_str != '\r'):
+        while(self.in_str[0] != '\n' and self.in_str[0] != '\r'):
             self.junk()
 
     def __str__(self):
