@@ -10,9 +10,9 @@ class Token:
         True if self.value else False
     #don't see the need for setters
     def __str__(self):
-        return "(type: {}  value: {})".format(self.type, self.value)
+        return "(type: '{}'  value: '{}')".format(self.type, self.value)
     def __repr__(self):
-        return "(type: {}  value: {})".format(self.type, self.value)
+        return "(type: '{}'  value: '{}')".format(self.type, self.value)
 
 
 
