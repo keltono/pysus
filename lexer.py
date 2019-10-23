@@ -54,7 +54,7 @@ class Lex:
                 else:
                     if self.in_str[0] == '=':
                         self.junk()
-                        self.token_list.append(Token('binop', '<='))
+                        self.token_list.append(Token('kwd', '<=')) #technically a binop but i don't really care. no practical difference
                     else:
                         self.token_list.append(Token('kwd', '<'))
 
@@ -65,7 +65,7 @@ class Lex:
                 else:
                     if self.in_str[0] == '=':
                         self.junk()
-                        self.token_list.append(Token('binop', '>='))
+                        self.token_list.append(Token('kwd', '>='))
                     else:
                         self.token_list.append(Token('kwd', '>'))
 
@@ -76,9 +76,10 @@ class Lex:
                 else:
                     if self.in_str[0] == '=':
                         self.junk()
-                        self.token_list.append(Token('binop', '=='))
+                        self.token_list.append(Token('kwd', '=='))
                     else:
                         self.token_list.append(Token('kwd', '='))
+            #TODO: add strings and chars
 
             elif ch.isnumeric() or ch == ".":
                self.lex_number()

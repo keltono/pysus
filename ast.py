@@ -12,7 +12,7 @@ Ast:
         -Unary
         -Call
     Statement:
-        -Let 
+        -Let
         -Var
         -Assign
         -If
@@ -35,19 +35,19 @@ class Int(Atomic):
     def __init__(self, val):
         super().__init__(self, val)
 
-class Float(Atomic)
+class Float(Atomic):
     def __init__(self, val):
         super().__init__(self, val)
 
-class Char(Atomic)
+class Char(Atomic):
     def __init__(self, val):
         super().__init__(self, val)
 
-class Bool(Atomic)
+class Bool(Atomic):
     def __init__(self, val):
         super().__init__(self, val)
 
-class Variable(Expr) #variable ref. stores name of var which is dealt with in codegen.
+class Variable_ref(Expr): #variable ref. stores name of var which is dealt with in codegen.
     def __init__(self, val):
         super().__init__(self, val)
 
@@ -66,6 +66,12 @@ class Unary(Expr):
 class Call(Expr):
     def __init__(self, name, args):
         self.name= name
+        self.args = args
+class Def(Statement):
+    def __init__(self, name, type, body):
+        self.name= name
+        self.type= type
+        self.body = body
 
 class Let(Statement):
     def __init__(self, name, type, val):
@@ -95,6 +101,11 @@ class For(Statement):
         self.cond = cond
         self.inc = inc
         self. body = body #stmntList ideally
+
+class Arg(Statement):
+    def __init__(self, name, type=None):
+        self.type = type
+        self.name = name
 
 class StatementList(Statement):
     def __init__(self, stmntList):
