@@ -59,6 +59,12 @@ class Call(Expr):
     def __init__(self, name, args):
         self.name= name
         self.args = args
+    def __repr__(self):
+        s = ""
+        for arg in self.args:
+            s +=f", {arg}"
+        s = s[2:]
+        return f"{self.name}({s})"
 class Def(Statement):
     def __init__(self, name, type, args, body):
         self.name= name
@@ -69,12 +75,12 @@ class Def(Statement):
 class Let(Statement):
     def __init__(self, name, type, val):
         self.name = name
-        self.type = type #not sure how to represent type here. for now a string will do but TODO add working arrays
+        self.type = type
         self.val = val
 class Var(Statement):
     def __init__(self, name, type, val):
         self.name = name
-        self.type = type #not sure how to represent type here. for now a string will do but TODO add working arrays
+        self.type = type
         self.val = val
 
 class Assign(Statement): #for re assignment of a var. doesn't make sense for it to be an expr now

@@ -19,6 +19,12 @@ formal(ish) grammar
            |<expr> #allows calls
 
 
+<expr-list> ::= <expr> <expr-list-post>
+              | EMPTY
+
+<expr-list-post> ::= , <expr> <expr-list-post>
+                   | EMPTY
+
 <expr> ::= <compare>
 
 <compare> ::= <add> == <add>
@@ -45,7 +51,7 @@ formal(ish) grammar
             | true
             | false
 
-<call> ::= ID(<arg-list-pre>)
+<call> ::= ID(<expr-list>)
 
 <type> ::= "int"
          | "double"
@@ -56,6 +62,7 @@ formal(ish) grammar
 
 <arg-list> ::= EMPTY
              | , <arg> <arg-list>
+<arg> ::= <type> ID
 
 """
 
@@ -83,6 +90,8 @@ class Parser:
         return False
     def consume(self, cons, err):
         #basically match_val but throws an error if false
+        if len(self.tl) == 0:
+            raise ValueError(err)
         if self.tl[0].val == cons:
             self.pop()
             return
@@ -104,9 +113,11 @@ class Parser:
             # except:
             #     print("uknown token {} outside of function!".format(curr))
 
+    #logic for parsing exprs. each function represents a grammar (or two) spesified above.
     def expr(self):
         return self.equal()
 
+    #these multiple function deal with order of operations. lowest down in the chain (unary,mult) have highest precedence.
     def equal(self):
         expr = self.compare()
         while(self.match_val('==','!=')):
@@ -162,9 +173,10 @@ class Parser:
             name = self.pop()
             if(self.match_val('(')):
                 self.pop()
-                arg_list = self.args()
+                #name is passed for error reporting
+                arg_list = self.arg_vals(name)
                 self.consume(')', f"missing ')' at end of {name.val} call on line {name.line}")
-                return ast.Call(name, arg_list)
+                return ast.Call(name.val, arg_list)
             return ast.Variable(name.val)
         elif self.match_val('('):
             line_num = self.pop().line
@@ -173,8 +185,22 @@ class Parser:
             return expr
         else:
             tok = self.pop()
-            raise ValueError(f"unrecognized token '{tok.val}' on line {tok.line}")
+            raise ValueError(f"unrecognized token '{tok.val}' in expr on line {tok.line}")
     #TODO args, parse_def
+
+    #arg_vals is for the arguments given to a call, args is for the arguments given to a function definition
+    def arg_vals(self,name):
+        arg_list = []
+        while(not self.match_val(')')):
+            arg_list.append(self.expr())
+            if(self.match_val(',')):
+                self.pop()
+            else:
+                break
+        if(not self.match_val(')')):
+            raise ValueError('invalid token in function call {name} one line {self.tl[0].line}')
+        return arg_list
+
 
     def __str__(self):
         return ("{}".format(self.ast_list))

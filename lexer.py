@@ -6,20 +6,27 @@ class Lex:
     def __init__(self, in_str):
         self.token_list = []
         self.in_str = in_str
+        self.lineno = 1
 
     def junk(self):
         self.in_str = self.in_str[1:] #returns the cdr of a seq
+
+    def add(self, ty, val):
+        self.token_list.append(Token(ty,val,self.lineno))
 
     def lex(self):
 
         while(len(self.in_str) != 0):
             ch = self.in_str[0]
-            if ch == ' ' or ch == '\n' or ch == '\r' or ch == '\t' : #all of these just add to the token list. do not return anything.
+            if ch == '\n':
+                self.lineno += 1
+                self.junk()
+            elif ch == ' ' or ch == '\r' or ch == '\t' : #all of these just add to the token list. do not return anything.
                 self.junk() #trash white space
             elif ch == '/':
                 self.junk()
                 if (not self.in_str):
-                    self.token_list.append(Token('kwd','/'))
+                    self.add('kwd','/')
                 else:
                     if self.in_str[0] == '/':
                         self.junk()
@@ -28,57 +35,57 @@ class Lex:
                         self.junk()
                         self.lex_multi_comment()
                     else:
-                        self.token_list.append(Token('kwd','/'))
+                        self.add('kwd','/')
 
 
             elif ch == '+': #TODO add +=
                 self.junk()
-                self.token_list.append(Token('kwd', '+')) #all of these just add to the token list and don't return anything
+                self.add('kwd', '+') #all of these just add to the token list and don't return anything
 
             elif ch == '-': #these only exist for the purpose of being extended later (e.g +=, *=). the current system would treat it this way by default
                 self.junk()
-                self.token_list.append(Token('kwd', '-'))
+                self.add('kwd', '-')
 
             elif ch == '*':
                 self.junk()
-                self.token_list.append(Token('kwd', '*')) #always count this as binop? not sure.
+                self.add('kwd', '*')
 
             elif ch == '%':
                 self.junk()
-                self.token_list.append(Token('kwd', '%'))
+                self.add('kwd', '%')
 
             elif ch == '<':
                 self.junk()
                 if len(self.in_str) == 0:
-                    self.token_list.append(Token('kwd', '<'))
+                    self.add('kwd', '<')
                 else:
                     if self.in_str[0] == '=':
                         self.junk()
-                        self.token_list.append(Token('kwd', '<=')) #technically a binop but i don't really care. no practical difference
+                        self.add('kwd', '<=')
                     else:
-                        self.token_list.append(Token('kwd', '<'))
+                        self.add('kwd', '<')
 
             elif ch == '>':
                 self.junk()
                 if len(self.in_str) == 0:
-                    self.token_list.append(Token('kwd', '>'))
+                    self.add('kwd', '>')
                 else:
                     if self.in_str[0] == '=':
                         self.junk()
-                        self.token_list.append(Token('kwd', '>='))
+                        self.add('kwd', '>=')
                     else:
-                        self.token_list.append(Token('kwd', '>'))
+                        self.add('kwd', '>')
 
             elif ch == '=':
                 self.junk()
                 if len(self.in_str) == 0:
-                    self.token_list.append(Token('kwd', '='))
+                    self.add('kwd', '=')
                 else:
                     if self.in_str[0] == '=':
                         self.junk()
-                        self.token_list.append(Token('kwd', '=='))
+                        self.add('kwd', '==')
                     else:
-                        self.token_list.append(Token('kwd', '='))
+                        self.add('kwd', '=')
             #TODO: add strings and chars
 
             elif ch.isnumeric() or ch == ".":
@@ -88,40 +95,40 @@ class Lex:
                 self.lex_ident()
             else:
                 self.junk()
-                self.token_list.append(Token("kwd", ch))
+                self.add("kwd", ch)
         return self.token_list
 
     def lex_ident(self):
         buff = ""
-        while(( self.in_str[0].isalpha() or self.in_str[0] == '_') and self.in_str ):
+        while(( self.in_str[0].isalpha() or self.in_str[0] == '_' or self.in_str[0].isnumeric()) and self.in_str ):
             buff += self.in_str[0]
             self.junk()
         if buff == 'def':
-            self.token_list.append(Token('def'))
+            self.add('def')
         elif buff == 'return':
-            self.token_list.append(Token('return'))
+            self.add('return')
         elif buff == 'extern':
-            self.token_list.append(Token('extern'))
+            self.add('extern')
         elif buff == 'if':
-            self.token_list.append(Token('if'))
+            self.add('if')
         elif buff == 'else':
-            self.token_list.append(Token('else'))
+            self.add('else')
         elif buff == 'let':
-            self.token_list.append(Token('let'))
+            self.add('let')
         elif buff == 'var': #TODO maybe go back to point?
-            self.token_list.append(Token('var'))
+            self.add('var')
         elif buff == 'true':
-            self.token_list.append(Token('true'))
+            self.add('true')
         elif buff == 'false':
-            self.token_list.append(Token('false'))
+            self.add('false')
         elif buff == 'int':
-            self.token_list.append(Token('type','int'))
+            self.add('type','int')
         elif buff == 'float':
-            self.token_list.append(Token('type','float'))
+            self.add('type','float')
         elif buff == 'char':
-            self.token_list.append(Token('type','char'))
+            self.add('type','char')
         else:
-            self.token_list.append(Token('ident', buff))
+            self.add('ident', buff)
        #TODO: add: and, or, for, null
 
     def lex_number(self): #these also just add to the token list directly
@@ -134,9 +141,9 @@ class Lex:
                 print("error! more than 1 period in number!") #TODO error handle for real
             else:
                 #this casting should probably happen in the parser, but meh
-                self.token_list.append(Token("float", float(buff)))
+                self.add("float", float(buff))
         else:
-            self.token_list.append(Token("int", int(buff)))
+            self.add("int", int(buff))
 
     def lex_comment(self):
         while(self.in_str[0] != '\n' and self.in_str[0] != '\r'):
