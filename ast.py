@@ -6,6 +6,7 @@ Ast:
         -Binary
         -Unary
         -Call
+        -Variable
     Statement:
         -Let
         -Var
@@ -49,6 +50,10 @@ class Unary(Expr):
         self.op = op
         self.operand = operand
 #TODO: add ternaries
+
+class Variable(Expr):
+    def __init__(self, name):
+        self.name= name
 
 class Call(Expr):
     def __init__(self, name, args):
