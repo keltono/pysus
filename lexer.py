@@ -133,6 +133,7 @@ class Lex:
             if buff.count('.') > 1:
                 print("error! more than 1 period in number!") #TODO error handle for real
             else:
+                #this casting should probably happen in the parser, but meh
                 self.token_list.append(Token("float", float(buff)))
         else:
             self.token_list.append(Token("int", int(buff)))

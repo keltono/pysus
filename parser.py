@@ -1,109 +1,180 @@
 import ast
+
+"""
+formal(ish) grammar
+
+<toplevel> ::= EMPTY
+             | <function> <toplevel>
+
+<function> ::= def <type> ID"("<arg-list-pre>")" "{" <stmnt-list> "}"
+
+<stmnt-list> ::= EMPTY
+               | <stmnt> ";" <stmnt-list>
+
+<stmnt> ::= "let" <type> ID "=" <expr>
+           |"var" <type> ID "=" <expr>
+           |ID = <expr>
+           |"if" "(" <expr> ")" "{" <stmnt-list> "}"
+           |"return" <expr>
+           |<expr> #allows calls
+
+
+<expr> ::= <compare>
+
+<compare> ::= <add> == <add>
+            | <add> < <add>
+            | <add> > <add>
+            | <add>
+
+<add> ::= <mult> + <mult>
+        | <mult> - <mult>
+        | <mult>
+
+<mult> ::= <unary> * <unary>
+         | <unary> / <unary>
+         | <unary>
+
+<unary> ::= -<primary>
+          | !<primary>
+          | <pimary>
+
+<primary> ::= ID
+            | <call>
+            | (<expr>)
+            | NUM
+            | true
+            | false
+
+<call> ::= ID(<arg-list-pre>)
+
+<type> ::= "int"
+         | "double"
+         | "bool"
+
+<arg-list-pre> ::= EMPTY
+             | <arg> <arg-list>
+
+<arg-list> ::= EMPTY
+             | , <arg> <arg-list>
+
+"""
+
 class Parser:
     def __init__(self, token_list):
+        #I call it a "token list" but its more of a token stack
         self.tl = token_list
         self.ast_list = []
-        binop_prec = { #could put this in main.py but doesn't really seem necessary
-        #TODO  <- and/or  ->
-        '||' : (7, 'bool'),
-        '&&' : (8, 'bool'),
-        '==' : (9, 'any'),
-        '!=' : (9, 'any'),
-        '<=' : (10, 'any'),
-        '>=' : (10, 'any'),
-        '<' : (10, 'any'),
-        '>' : (10, 'any'),
-        '+' : (20, 'any'),
-        '-' : (20, 'any'),
-        '%' : (30, 'any'),
-        '*' : (40, 'any'),
-        '/' : (40, 'any'),
-        }
+    def add_ast(self, to_add,to_junk=1):
+        self.ast_list.append(to_add)
+        #TODO: see if i need to pop here (WHAT IS POPPING)
+    def match(self, *args):
+        if len(self.tl) == 0:
+            return False
+        for ty in args:
+            if(self.tl[0].type == ty):
+                return True
+        return False
+    def match_val(self, *args):
+        if len(self.tl) == 0:
+            return False
+        for val in args:
+            if(self.tl[0].val == val):
+                return True
+        return False
+    def consume(self, cons, err):
+        #basically match_val but throws an error if false
+        if self.tl[0].val == cons:
+            self.pop()
+            return
+        raise ValueError(err)
 
-    def junk(self, num=1):
-        self.tl = self.tl[num:]
-    def add(self, to_add,to_junk=1):
-        self.tl.append(to_junk)
-        self.junk(to_junk)
+    def pop(self):
+        top = self.tl[0]
+        self.tl = self.tl[1:]
+        return top
     def parse(self):
         while(self.tl):
-            try: #TODO? add global vars
-                if self.tl[0].type == 'def':
-                    self.junk()
-                    self.add(self.parse_def())
-                elif self.tl[0].type == 'extern':
-                    self.junk()
-                    self.add(self.parse_extern())
-                else: #TODO have this raise an error. parses primary for testing purposes.
-                    self.add(parse_expr())
-                    # raise ValueError
-            except:
-                print("uknown token {} outside of function!".format(tok)) #TODO modify if I add classes
-    def parse_primary(self): #returns the AST
-        if self.tl[0].type == 'int': #primary here just means Expr - unary and binary (and ternary when that comes)
-            self.junk()
-            return (ast.Int(self.tl[0].val))
-        elif self.tl[0].type == 'float':
-            self.junk()
-            return (ast.Float(self.tl[0].val))
-        elif self.tl[0].type == 'true':
-            self.junk()
-            return ast.Bool(True)
-        elif self.tl[0].type == 'false':
-            self.junk()
-            return (ast.Bool(False))
-        #TODO add '(' expr ')' here
-        elif self.tl[0].type == 'ident': #variables and calls
-            name = self.tl[0].val
-            if self.tl[1].val=='(':
-                self.junk(2) #TODO return an ast.Call() here
-                # arg_list = self.parse_args(False) TODO
+            # try: #TODO(?) add global vars
+            if self.match('def'):
+                self.add_ast(self.parse_def())
             else:
-                self.junk()
-                return (ast.Variable_ref(name))
-        return args
+                #going to allow top level exprs for testing reasons
+                self.add_ast(self.expr())
+                #raise ValueError
+            # except:
+            #     print("uknown token {} outside of function!".format(curr))
 
-    #TODO add parse_unary
-    def parse_expr(self): #bascially primary + binop possibility:
-        lhs = parse_primary() #this works because '(' expr ')' is in parse primary. the code in parse_rhs allows for 1 + 1 + 1 etc.
-        #no need to match because primary already junks
-        ch  = self.tl[0]
-        if(ch.type == 'kwd' and ch.val in binop_prec ):
-            if
+    def expr(self):
+        return self.equal()
+
+    def equal(self):
+        expr = self.compare()
+        while(self.match_val('==','!=')):
+            op = self.pop().val
+            rhs = self.compare()
+            expr = ast.Binary(expr, op, rhs)
+        return expr
+
+    def compare(self):
+        expr = self.add()
+        while(self.match_val('>', '<', '<=', '>=')):
+            op = self.pop().val
+            rhs = self.add()
+            expr = ast.Binary(expr, op, rhs)
+        return expr
+
+    def add(self):
+        expr = self.mult()
+        while(self.match_val('+', '-')):
+            op = self.pop().val
+            rhs = self.mult()
+            expr = ast.Binary(expr, op, rhs)
+        return expr
+
+    def mult(self):
+        expr = self.unary()
+        while(self.match_val('/','*')):
+            op = self.pop().val
+            rhs = self.unary()
+            expr = ast.Binary(expr, op, rhs)
+        return expr
+
+    def unary(self):
+        if(self.match_val('-','!')):
+            op = self.pop().val
+            return ast.unary(op, unary())
+        return self.primary()
+
+    def primary(self):
+        if self.match('int'):
+            i = self.pop().val
+            return (ast.Literal(i))
+        elif self.match('float'):
+            f = self.pop().val
+            return (ast.Literal(f))
+        elif self.match('true'):
+            self.pop()
+            return ast.Literal(True)
+        elif self.match('false'):
+            self.pop()
+            return (ast.Literal(False))
+        elif self.match('ident'):
+            name = self.pop()
+            if(self.match_val('(')):
+                self.pop()
+                arg_list = self.args()
+                self.consume(')', f"missing ')' at end of {name.val} call on line {name.line}")
+                return ast.Call(name, arg_list)
+            return ast.Variable(name.val)
+        elif self.match_val('('):
+            line_num = self.pop().line
+            expr = self.expr()
+            self.consume(')', f"missing ')' in '('<expr>')' on line {line_num}")
+            return expr
         else:
-            return lhs
+            tok = self.pop()
+            raise ValueError(f"unrecognized token '{tok.val}' on line {tok.line}")
+    #TODO args, parse_def
 
-        pass
-
-    def parse_def(self):
-        #TODO
-        print("saw a def!")
-        self.junk()
-    def parse_extern(self):
-        #TODO
-        print("saw an extern!")
-
-'''    def parse_args(self, named_args):
-        args = []
-        while(True):
-            if named_args:
-                if self.tl[0].type == 'type' and self.tl[1].type == 'ident':
-                    args += ast.Arg(self.tl[1].val, self.tl[0].val)  #name, type
-                elif self.tl[0].type == 'ident':
-                    print("Error: expected type in argument, got: ".format(self.tl[0]))
-                    raise RuntimeError
-                elif self.tl[0].val == ')':
-                    break
-                else:
-                    print("Error: invalid argument at token {}".format(self.tl[0]))
-                    raise RuntimeError
-            else:
-                if self.tl[0].type != 'ident' or self.tl[0].type == 'int' or self.t[0].type == 'float' or self.tl[0] != 'true' or self.tl[0] != 'false':  #TODO: extend
-                    print("Error: invalid argument at token {}".format(self.tl[0]))
-                    raise RuntimeError
-                elif self.tl[0].val == ')':
-                    break
-                else:
-                    args += Arg(self.tl[0].val) #parse_expr
-'''
-
+    def __str__(self):
+        return ("{}".format(self.ast_list))

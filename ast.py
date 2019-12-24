@@ -2,12 +2,7 @@
 summary:
 Ast:
     Expr:
-        Atomic:
-            -Int
-            -Float
-            -Char
-            -Bool
-        -Variable
+        -Literal
         -Binary
         -Unary
         -Call
@@ -23,39 +18,31 @@ Ast:
 class Ast:
     pass
 class Expr(Ast):
+    #Anything that *does* yield a value.
     pass
-class Statement(Ast): #anything that doesn't yield a value directly. loops, declarations, return statements, etc
+class Statement(Ast):
+    #anything that doesn't yield a value directly. loops, declarations, return statements, etc
     pass
 
-class Atomic(Expr): #base types
+class Literal(Expr):
+    #Numbers, bools, strings, oh my!
     def __init__(self, val):
         self.val = val
-
-class Int(Atomic):
-    def __init__(self, val):
-        super().__init__(self, val)
-
-class Float(Atomic):
-    def __init__(self, val):
-        super().__init__(self, val)
-
-class Char(Atomic):
-    def __init__(self, val):
-        super().__init__(self, val)
-
-class Bool(Atomic):
-    def __init__(self, val):
-        super().__init__(self, val)
-
-class Variable_ref(Expr): #variable ref. stores name of var which is dealt with in codegen.
-    def __init__(self, val):
-        super().__init__(self, val)
+    def __repr__(self):
+        return str(self.val)
+    def __str__(self):
+        return str(self.val)
 
 class Binary(Expr):
-    def __init__(self, op, lhs, rhs):
-        self.op = op #the lack of types here makes this worryingly easy
+    def __init__(self, lhs, op, rhs):
+        #probably should have gone with a statically typed language... this is worryingly easy
+        self.op = op
         self.lhs = lhs
         self.rhs = rhs
+    def __repr__(self):
+        return f"({self.lhs.__repr__()} {self.op} {self.rhs.__repr__()})"
+    def __str__(self):
+        return f"({self.lhs.__repr__()} {self.op} {self.rhs.__repr__()})"
 
 class Unary(Expr):
     def __init__(self, op, operand):
@@ -68,9 +55,10 @@ class Call(Expr):
         self.name= name
         self.args = args
 class Def(Statement):
-    def __init__(self, name, type, body):
+    def __init__(self, name, type, args, body):
         self.name= name
         self.type= type
+        self.args = args
         self.body = body
 
 class Let(Statement):
@@ -107,8 +95,5 @@ class Arg(Statement):
         self.type = type
         self.name = name
 
-class StatementList(Statement):
-    def __init__(self, stmntList):
-        self.statements = stmntList
 
 

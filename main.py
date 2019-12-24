@@ -16,9 +16,9 @@ print(tokens)
 
 par = parser.Parser(tokens)
 
-ast_nodes = par.parse()
+par.parse()
 
-print(ast_nodes)
+print(par)
 
 
 
