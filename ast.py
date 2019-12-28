@@ -13,6 +13,7 @@ Ast:
         -Assign
         -If
         -For
+        -While
         -StatementList
 """
 
@@ -71,40 +72,61 @@ class Def(Statement):
         self.type= type
         self.args = args
         self.body = body
+    def __repr__(self):
+        s=""
+        for arg in self.args:
+            s +=f", {arg}"
+        s = s[2:]
+        return f"def {self.type} {self.name}({s}) {self.body}"
+    def __str__(self):
+        s=""
+        for arg in self.args:
+            s +=f", {arg}"
+        s = s[2:]
+        return f"def {self.type} {self.name}({s}) {self.body}"
 
 class Let(Statement):
     def __init__(self, name, type, val):
         self.name = name
         self.type = type
         self.val = val
+    def __str__(self):
+        return f"let {self.type} {self.name} = {self.val}"
+    def __repr__(self):
+        return f"let {self.type} {self.name} = {self.val}"
+
 class Var(Statement):
     def __init__(self, name, type, val):
         self.name = name
         self.type = type
         self.val = val
+    def __str__(self):
+        return f"var {self.type} {self.name} = {self.val}"
+    def __repr__(self):
+        return f"var {self.type} {self.name} = {self.val}"
 
 class Assign(Statement): #for re assignment of a var. doesn't make sense for it to be an expr now
     def __init__(self, var, val):
         self.var = var
         self.val = val
+    def __repr__(self):
+        return f"{self.var} = {self.val}"
 
 class If(Statement):
-    def __init__(self, condition, thenbody, elsebody):
+    def __init__(self, condition, thenbody, elsebody=None):
         self.condition = condition
         self.thenbody = thenbody
         self.elsebody = elsebody
+    def __repr__(self):
+        return f"if({self.condition}) {self.thenbody} else {self.elsebody} "
 class For(Statement):
     def __init__(self, ident, type, cond, inc, body):
         self.id = ident
         self.type = type
         self.cond = cond
         self.inc = inc
-        self. body = body #stmntList ideally
+        self.body = body #stmntList ideally
 
-class Arg(Statement):
-    def __init__(self, name, type=None):
-        self.type = type
-        self.name = name
 
 
 

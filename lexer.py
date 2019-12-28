@@ -11,8 +11,12 @@ class Lex:
     def junk(self):
         self.in_str = self.in_str[1:] #returns the cdr of a seq
 
-    def add(self, ty, val):
-        self.token_list.append(Token(ty,val,self.lineno))
+    def add(self, ty, val=None):
+        if(val):
+            self.token_list.append(Token(ty,val,self.lineno))
+        else:
+            self.token_list.append(Token(ty,line=self.lineno))
+
 
     def lex(self):
 
@@ -21,7 +25,7 @@ class Lex:
             if ch == '\n':
                 self.lineno += 1
                 self.junk()
-            elif ch == ' ' or ch == '\r' or ch == '\t' : #all of these just add to the token list. do not return anything.
+            elif ch == ' ' or ch == '\r' or ch == '\t' :
                 self.junk() #trash white space
             elif ch == '/':
                 self.junk()
@@ -127,6 +131,8 @@ class Lex:
             self.add('type','float')
         elif buff == 'char':
             self.add('type','char')
+        elif buff == 'bool':
+            self.add('type','bool')
         else:
             self.add('ident', buff)
        #TODO: add: and, or, for, null

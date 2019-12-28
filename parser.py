@@ -70,6 +70,7 @@ class Parser:
     def __init__(self, token_list):
         #I call it a "token list" but its more of a token stack
         self.tl = token_list
+        self.previous = token_list[0]
         self.ast_list = []
     def add_ast(self, to_add,to_junk=1):
         self.ast_list.append(to_add)
@@ -100,25 +101,105 @@ class Parser:
     def pop(self):
         top = self.tl[0]
         self.tl = self.tl[1:]
+        self.previous = top
         return top
     def parse(self):
         while(self.tl):
             # try: #TODO(?) add global vars
             if self.match('def'):
+                self.pop()
                 self.add_ast(self.parse_def())
             else:
                 #going to allow top level exprs for testing reasons
-                self.add_ast(self.expr())
+                self.add_ast(self.statementlist("toplevel", 0))
                 #raise ValueError
             # except:
             #     print("uknown token {} outside of function!".format(curr))
+        return self.ast_list
+
+    #this one starts with "parse_" because def is a reserved word in python. does *not* expect the def keyword
+    def parse_def(self):
+        if self.match('type'):
+            ty = self.pop().val
+        else:
+            raise ValueError(f'expected function return type in function definition on line {self.tl[0].line}')
+        if self.match('ident'):
+            name = self.pop()
+        else:
+            raise ValueError('expected function name in function definition on line {self.tl[0].line}')
+        args = self.args(name.val)
+        body = self.statementlist("function definition", name.line)
+        return ast.Def(name.val, ty, args, body)
+
+    #expects and consumes curly braces (e.g {<stmntlist>} )
+    def statementlist(self,parent, line):
+        stmntlist = []
+        self.consume('{', "expected '{' " +f" in {parent} " + f" on line {line}")
+        while not self.match_val('}'):
+            stmntlist.append(self.statement())
+            if self.match_val('}'):
+                break
+            if not self.previous.val == '}':
+                self.consume(';', "expected ';' after statement on line {self.tl[0].line}")
+        self.pop()
+        return stmntlist
+
+# <stmnt> ::= "let" <type> ID "=" <expr>
+#            |"var" <type> ID "=" <expr>
+#            |ID = <expr>
+#            |"if" <expr> "{" <stmnt-list> "}"
+#            |"return" <expr>
+#            |<expr> #allows calls
+    def statement(self):
+        if self.match("let"):
+            line = self.pop().line
+            #TODO: update this to include idents if/when I add typedefs
+            if self.match("type"):
+                ty = self.pop().val
+            else:
+                raise ValueError(f"expected type in let declaration on line {line}, saw {self.tl[0].val}")
+            if self.match("ident"):
+                name = self.pop().val
+            else:
+                raise ValueError(f"expected name in let declaration on line {line}, saw {self.tl[0].val}")
+            self.consume("=", f"expected '=' in let declaration on line {line}, saw {self.tl[0].val}")
+            ex = self.expr()
+            return ast.Let(name,ty,ex)
+        elif self.match("var"):
+            line = self.pop().line
+            #TODO: update this to include idents if/when I add typedefs
+            if self.match("type"):
+                ty = self.pop().val
+            else:
+                raise ValueError(f"expected type in var declaration on line {line}, saw {self.tl[0].val}")
+            if self.match("ident"):
+                name = self.pop().val
+            else:
+                raise ValueError(f"expected name in var declaration on line {line}, saw {self.tl[0].val}")
+            self.consume("=", f"expected '=' in var declaration on line {line}, saw {self.tl[0].val}")
+            ex = self.expr()
+            return ast.Var(name,ty,ex)
+        elif self.match("if"):
+            line = self.pop().line
+            ex = self.expr()
+            thenstmnts = self.statementlist("if statement",line)
+            if not self.match("else"):
+                elsestmnts = None
+            else:
+                line = self.pop().line
+                elsestmnts = self.statementlist("else statement", line)
+            return ast.If(ex,thenstmnts,elsestmnts)
+        elif self.match('ident') and self.tl[1].val == '=':
+            name = self.pop().val
+            self.pop()
+            val = self.expr()
+            return ast.Assign(name, val)
+        else:
+            return self.expr()
 
     #logic for parsing exprs. each function represents a grammar (or two) spesified above.
-    def expr(self):
-        return self.equal()
-
     #these multiple function deal with order of operations. lowest down in the chain (unary,mult) have highest precedence.
-    def equal(self):
+    def expr(self):
         expr = self.compare()
         while(self.match_val('==','!=')):
             op = self.pop().val
@@ -170,14 +251,12 @@ class Parser:
             self.pop()
             return (ast.Literal(False))
         elif self.match('ident'):
-            name = self.pop()
+            name = self.pop().val
             if(self.match_val('(')):
-                self.pop()
                 #name is passed for error reporting
-                arg_list = self.arg_vals(name)
-                self.consume(')', f"missing ')' at end of {name.val} call on line {name.line}")
-                return ast.Call(name.val, arg_list)
-            return ast.Variable(name.val)
+                arg_list = self.tuple(name)
+                return ast.Call(name, arg_list)
+            return ast.Variable(name)
         elif self.match_val('('):
             line_num = self.pop().line
             expr = self.expr()
@@ -185,22 +264,53 @@ class Parser:
             return expr
         else:
             tok = self.pop()
-            raise ValueError(f"unrecognized token '{tok.val}' in expr on line {tok.line}")
+            raise ValueError(f"invalid token '{tok.val}' in expr on line {tok.line}")
     #TODO args, parse_def
 
-    #arg_vals is for the arguments given to a call, args is for the arguments given to a function definition
-    def arg_vals(self,name):
-        arg_list = []
+    #not sure how to differentiate between '('<expr>')' and a tuple in parsing...
+    #I guess you just have to iterate over all of the tokens between the parens and see if there's a comma.
+    #parses the insides of a tuple, returning a list of the values. used in parsing tuples and function calls. expects the opening paren '('. consumes the closing paren ')'
+    def tuple(self,name):
+        vals = []
+        if not self.match_val('('):
+            raise ValueError(f'expected "(" in {name} function call on line {self.tl[0].line}')
+        else:
+            self.pop()
         while(not self.match_val(')')):
-            arg_list.append(self.expr())
+            vals.append(self.expr())
             if(self.match_val(',')):
                 self.pop()
             else:
                 break
         if(not self.match_val(')')):
-            raise ValueError('invalid token in function call {name} one line {self.tl[0].line}')
+            raise ValueError(f'invalid token in function call {name} on line {self.tl[0].line}')
+        self.pop()
+        return vals
+    #parses arguments in a function definition (e.g type name, type1 name1, ...) same as above where it expects the opening paren and consumes the closing paren
+    #returns a list of string tuples. in the form [(type,name),(type1,name1)]
+    def args(self,name):
+        arg_list = []
+        if not self.match_val('('):
+            raise ValueError(f'expected "(" in {name} function definition on line {self.tl[0].line}')
+        else:
+            self.pop()
+        while(not self.match_val(')')):
+            if self.match('type'):
+                ty = self.pop()
+            else:
+                raise ValueError(f"expected type in {name} function definition, saw {self.tl[0].val} on line {self.tl[0].line}")
+            if self.match('ident'):
+                arg_list.append((ty.val,self.pop().val))
+            else:
+                raise ValueError(f"expected arg name in {name} function definition, saw {self.tl[0].val} on line {self.tl[0].line}")
+            if(self.match_val(',')):
+                self.pop()
+            else:
+                break
+        if(not self.match_val(')')):
+            raise ValueError(f'invalid token in function definition {name} on line {self.tl[0].line}')
+        self.pop()
         return arg_list
 
-
     def __str__(self):
-        return ("{}".format(self.ast_list))
+        return (f"{self.ast_list}")

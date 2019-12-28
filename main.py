@@ -16,9 +16,9 @@ print(tokens)
 
 par = parser.Parser(tokens)
 
-par.parse()
+ast = par.parse()
 
-print(par)
+print(ast)
 
 
 
