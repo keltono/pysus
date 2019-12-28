@@ -24,6 +24,7 @@ class Lex:
             ch = self.in_str[0]
             if ch == '\n':
                 self.lineno += 1
+                self.add('newline','\n')
                 self.junk()
             elif ch == ' ' or ch == '\r' or ch == '\t' :
                 self.junk() #trash white space

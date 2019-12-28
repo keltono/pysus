@@ -109,6 +109,9 @@ class Parser:
             if self.match('def'):
                 self.pop()
                 self.add_ast(self.parse_def())
+            #ignore toplevel newlines
+            elif self.match_val('\n'):
+                self.pop()
             else:
                 #going to allow top level exprs for testing reasons
                 self.add_ast(self.statementlist("toplevel", 0))
@@ -134,22 +137,23 @@ class Parser:
     #expects and consumes curly braces (e.g {<stmntlist>} )
     def statementlist(self,parent, line):
         stmntlist = []
+        while self.match_val('\n'):
+            self.pop()
         self.consume('{', "expected '{' " +f" in {parent} " + f" on line {line}")
+        #how often i check to see if the token is '}' is bad, but it works!
         while not self.match_val('}'):
+            while self.match_val('\n'):
+                self.pop()
+            if self.match_val('}'):
+                break
             stmntlist.append(self.statement())
             if self.match_val('}'):
                 break
             if not self.previous.val == '}':
-                self.consume(';', "expected ';' after statement on line {self.tl[0].line}")
+                self.consume('\n', "expected new line after statement on line {self.tl[0].line}")
         self.pop()
         return stmntlist
 
-# <stmnt> ::= "let" <type> ID "=" <expr>
-#            |"var" <type> ID "=" <expr>
-#            |ID = <expr>
-#            |"if" <expr> "{" <stmnt-list> "}"
-#            |"return" <expr>
-#            |<expr> #allows calls
     def statement(self):
         if self.match("let"):
             line = self.pop().line
@@ -189,6 +193,10 @@ class Parser:
                 line = self.pop().line
                 elsestmnts = self.statementlist("else statement", line)
             return ast.If(ex,thenstmnts,elsestmnts)
+        elif self.match('return'):
+            self.pop()
+            returning = self.expr()
+            return ast.Return(returning)
         elif self.match('ident') and self.tl[1].val == '=':
             name = self.pop().val
             self.pop()

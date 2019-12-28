@@ -13,8 +13,12 @@ class Token:
         True if self.val else False
     #don't see the need for setters
     def __str__(self):
+        if self.val == '\n':
+            return "(type: newline val: \\n)"
         return "(type: '{}'  val: '{}')".format(self.type, self.val)
     def __repr__(self):
+        if self.val == '\n':
+            return "(type: newline val: \\n)"
         return "(type: '{}'  val: '{}')".format(self.type, self.val)
 
 

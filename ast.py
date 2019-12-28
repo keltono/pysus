@@ -14,7 +14,7 @@ Ast:
         -If
         -For
         -While
-        -StatementList
+        -Return
 """
 
 class Ast:
@@ -84,6 +84,12 @@ class Def(Statement):
             s +=f", {arg}"
         s = s[2:]
         return f"def {self.type} {self.name}({s}) {self.body}"
+
+class Return(Statement):
+    def __init__(self,returning):
+        self.returning = returning
+    def __repr__(self):
+        return f"return {self.returning}"
 
 class Let(Statement):
     def __init__(self, name, type, val):

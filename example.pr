@@ -1,5 +1,5 @@
 def int main(){
-    return 1; //this is a comment 
+    return 1 //this is a comment 
     //what
 
 }
