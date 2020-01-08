@@ -63,49 +63,95 @@ class Codegen:
     #doesn't return anything, unlike the codegenExpr
     def codegenStatement(self, s):
         ty = type(s)
+
         if ty == ast.Return:
             expr = self.codegenExpr(s.returning)
-            funcReturnType = self.e.getLLVarType("@"+self.e.currentScope.name[1])[1] #self.e.currentScope.name[0] is the file name
+            funcReturnType = self.e.getLLVariable(self.e.currentScope.name[1])[1][1] #self.e.currentScope.name[0] is the file name
+            #[1][1] because what's returned is ("@funcname",(["argTypes"], "returnType"))
             #check and see if it incorrectly assumed literal type based on function return type, and readjust if needed
             #this will probably need to be reworked given oop
-            if type(expr) == float:
-                if funcReturnType == "double":
-                    returnType = "double"
-                elif funcReturnType == "float":
-                    returnType = "float"
-                else:
-                    #if it's returning, we can probably assume that it would have been a parse error if it *wasn't* in a function
-                    raise ValueError(f"return type mismatch in function {self.e.currentScope.name}: expected a(n) {funcReturnType}, saw a float")
-            elif type(expr) == int:
-                if funcReturnType == "i64" or funcReturnType == "i32" or funcReturnType == "i16" or funcReturnType == "i8":
-                    returnType = funcReturnType
-                else:
-                    raise ValueError(f"return type mismatch in function {self.e.currentScope.name}: expected a(n) {funcReturnType}, saw an int")
-            elif type(expr) == bool:
-                returnType = "i1"
+            #in order to deal with the weak type system, SSA variables returned from codegen are 2-tuples of the form ("%name", "lltype")
+            #bit of a hack, but eh. if it's stupid and it works...
+            if self.canConvert(expr[1], funcReturnType):
+                self.e.emmit(f"ret {funcReturnType} {expr[0]}")
             else:
-                returnType = self.e.getLocalVarType(expr)
+                raise ValueError(f"return type mismatch in function {self.e.currentScope.name}: expected a(n) {funcReturnType}, saw an int")
+            #the way I'm doing this right now will basically require me to have a special case for literals *anytime* i use a function
 
-            self.e.emmit(f"ret {returnType} {expr}")
 
-    #GOD I LOVE PATTERN MATCHING
+        #lets are scoped to the current function (or the global scope) like var declarations
+        #doesn't actually generate any code past the code needed to evaluate the expression,
+        #just adds it to the scope so that that value goes in wherever the variable is mentioned
+        elif ty == ast.Let:
+            expr = self.codegenExpr(s.val)
+            if s.type == None:
+                if expr[1] == "floating":
+                    ty = "double"
+                elif expr[1] == "int":
+                    ty = "i32"
+                elif expr[1] == "bool":
+                    ty = "i1"
+                else:
+                    ty = expr[1]
+            else:
+                letLLType = self.e.typeToLLType(s.type)
+                if self.canConvert(expr[1],letLLType):
+                    ty = letLLType
+                else:
+                    #probably shouldn't emmit SSA values in error reporting...
+                    raise ValueError(f"Expected a {letLLType} in let delcaration in function {self.e.currentScope.name[1]}, saw {expr}")
+            print(expr[1])
+            if expr[1] == "floating" or expr[1] == "int" or expr[1] == "bool":
+                self.e.addVariable(s.name, expr[0], ty, isLit=True)
+            else:
+                self.e.addVariable(s.name, expr[0], ty)
+        else:
+            codegenExpr(s)
+
     #how this works is that it emmits any/all lines needed for the expr, and then returns a
-    #string containing the SSA variable or the expected literal depending on the expr
+    # tuple of a string containing the SSA variable or the expected literal depending on the expr
+    # and another string of their own type
+    #int and floating are reserved for number literals and have special polymorphic properties (which sounds a lot fancier than it is)
+    #bool isn't polymorphic, but it's useful to know when something is a literal
+    #this whole literal system i've set up is way overly complex and kinda ruins the elegance of the program. Need to reconsider later.
     def codegenExpr(self, ex):
-        #i'm dumb. not sure how to differentiate different sized literals
-        #like, when is 4.0 a float and when is 4.0 a double? it depends on the context...
         t = type(ex)
         if t == ast.Literal:
             #TODO string and char literals
             if ex.val == True:
-                return 1
+                return ("1","bool")
             elif ex.val == False:
-                return 0
+                return ("0","bool")
+            elif type(ex.val) == float:
+                return (str(ex.val),"floating")
+            elif type(ex.val) == "int":
+                return (str(ex.val), "int")
             else:
-                return str(ex.val)
-        # if t == ast.
+                raise ValueError(f"what the heck is this? I expected a literal of *some kind* but i saw {ex.val}")
+        #Variable reference, not a var declaration. returns ("llvm_name", "llvm_type")
+        #e.g ("%1","i64")
+        elif t == ast.Variable:
+            return self.e.getLLVariable(ex.name)
+        # elif t == ast.Binary:
+            #TODO
+            # pass
         else:
             raise ValueError(f"{ex} isn't an expr dummy!")
+
+    #can I convert a variable to another type just by changing the type keyword?
+    #used for literals, returns a bool
+    #no implicit casts in my house!
+    #not sure how to handle the mix of float literals where there should be an int and vice versa. I'm going to follow the rust model where
+    #literals are given types, and any ad-hoc polymorphism must be handled by the individual function (so + will theoretically have casts built in)
+    def canConvert(self,typeFrom,typeTo):
+        if typeFrom == "int":
+            return typeTo[0] == 'i'
+        elif typeFrom == "floating":
+            return typeTo == "float" or typeTo == "double"
+        elif typeFrom == "bool":
+            return typeTo == "i1"
+        else:
+            return typeFrom == typeTo
 
 
     def close(self):

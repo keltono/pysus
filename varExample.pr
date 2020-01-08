@@ -1,0 +1,4 @@
+def bool main(){
+    let bool x = true
+    return x 
+}

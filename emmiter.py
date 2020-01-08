@@ -90,19 +90,31 @@ class Emmiter:
 
     #adds a variable to the current scope. in theory, the llname will be provided by the previous step in codegen.
     #also adds it to the "llVar" list
-    def addVariable(self,name, llname, lltype):
-        print(f"adding var, name = {name} llname = %{llname} lltype = {lltype}")
-        self.currentScope.namedValues[name] = ("%"+llname, lltype)
-        self.llVars[llname] = lltype
-    def addGlobal(self, name, llname, lltype):
-        print(f"adding global, name = {name} llname = @{llname} lltype = {lltype}")
-        self.globalScope.namedValues[name] = ("@"+llname, lltype)
-        self.llVars[llname] = lltype
+    def addVariable(self,name, llname, lltype, isLit=False):
+        if isLit:
+            print(f"adding literal var, name = {name} llname = {llname} lltype = {lltype}")
+            self.currentScope.namedValues[name] = (llname, lltype)
+        else:
+            print(f"adding var, name = {name} llname = %{llname} lltype = {lltype}")
+            self.currentScope.namedValues[name] = ("%"+llname, lltype)
+            self.llVars["%"+llname] = lltype
+    def addGlobal(self, name, llname, lltype, isLit=False):
+        if isLit:
+            print(f"adding literal var, name = {name} llname = {llname} lltype = {lltype}")
+            self.currentScope.namedValues[name] = (llname, lltype)
+        else:
+            print(f"adding global, name = {name} llname = @{llname} lltype = {lltype}")
+            self.globalScope.namedValues[name] = ("@"+llname, lltype)
+            self.llVars["@"+llname] = lltype
 
-    #returns the llvm variable name given the "proper" variable name
-    # eg "foo" -> "%example_2"
+    #returns the llvm variable name given the "proper" variable name and type
+    #e.g "foo" -> ("%example_2", "i32")
+    #the way i'm storing vars has a lot of redundency... probably not good.
     def getLLVariable(self,var):
         return self.currentScope.getNamedValue(var)
+    #returns the llvm variable type given the llvm variable name
+    #e.g "%example_2" -> "i64"
+    #only works on variables not defined by a literal, and thus should be used sparingly
     def getLLVarType(self,var):
         try:
             return self.llVars[var]

@@ -163,30 +163,52 @@ class Parser:
     def statement(self):
         if self.match("let"):
             line = self.pop().line
-            #TODO: update this to include idents if/when I add typedefs
+            #TODO add proper type parsing (pointers, arrays, custom types, etc)
             if self.match("type"):
-                #TODO add proper type parsing (pointers, arrays, custom types, etc)
                 ty = self.pop().val
+                if self.match("ident"):
+                    name = self.pop().val
+                else:
+                    raise ValueError(f"expected name in let declaration on line {line}, saw {self.tl[0].val}")
+            elif self.match("ident"):
+                ty= self.pop().val
+                #type inference
+                if self.match_val("="):
+                    name = ty
+                    ty = None
+                #this is where more complete type parsing would happen
+                #for the time being, just error out
+                else:
+                    raise ValueError(f"expected type in let declaration on line {line}, saw {self.tl[0].val}")
+
             else:
                 raise ValueError(f"expected type in let declaration on line {line}, saw {self.tl[0].val}")
-            if self.match("ident"):
-                name = self.pop().val
-            else:
-                raise ValueError(f"expected name in let declaration on line {line}, saw {self.tl[0].val}")
             self.consume("=", f"expected '=' in let declaration on line {line}, saw {self.tl[0].val}")
             ex = self.expr()
             return ast.Let(name,(ty,None),ex)
+
         elif self.match("var"):
             line = self.pop().line
-            #TODO: update this to include idents if/when I add typedefs
+            #TODO add proper type parsing (pointers, arrays, custom types, etc)
             if self.match("type"):
                 ty = self.pop().val
+                if self.match("ident"):
+                    name = self.pop().val
+                else:
+                    raise ValueError(f"expected name in let declaration on line {line}, saw {self.tl[0].val}")
+            elif self.match("ident"):
+                ty= self.pop().val
+                #type inference
+                if self.match_val("="):
+                    name = ty
+                    ty = None
+                #this is where more complete type parsing would happen
+                #for the time being, just error out
+                else:
+                    raise ValueError(f"expected type in let declaration on line {line}, saw {self.tl[0].val}")
+
             else:
-                raise ValueError(f"expected type in var declaration on line {line}, saw {self.tl[0].val}")
-            if self.match("ident"):
-                name = self.pop().val
-            else:
-                raise ValueError(f"expected name in var declaration on line {line}, saw {self.tl[0].val}")
+                raise ValueError(f"expected type in let declaration on line {line}, saw {self.tl[0].val}")
             self.consume("=", f"expected '=' in var declaration on line {line}, saw {self.tl[0].val}")
             ex = self.expr()
             return ast.Var(name,(ty,None),ex)
