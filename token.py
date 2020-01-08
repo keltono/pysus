@@ -21,6 +21,3 @@ class Token:
             return "(type: newline val: \\n)"
         return "(type: '{}'  val: '{}')".format(self.type, self.val)
 
-
-
-

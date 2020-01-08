@@ -74,7 +74,6 @@ class Parser:
         self.ast_list = []
     def add_ast(self, to_add,to_junk=1):
         self.ast_list.append(to_add)
-        #TODO: see if i need to pop here (WHAT IS POPPING)
     def match(self, *args):
         if len(self.tl) == 0:
             return False
@@ -122,6 +121,7 @@ class Parser:
 
     #this one starts with "parse_" because def is a reserved word in python. does *not* expect the def keyword
     def parse_def(self):
+        #TODO: real type parsing (to handle pointers, arrays)
         if self.match('type'):
             ty = self.pop().val
         else:
@@ -132,7 +132,13 @@ class Parser:
             raise ValueError('expected function name in function definition on line {self.tl[0].line}')
         args = self.args(name.val)
         body = self.statementlist("function definition", name.line)
-        return ast.Def(name.val, ty, args, body)
+        arg_types = []
+
+        for arg in args:
+            arg_types.append(arg[0])
+
+        #TODO properly format type (in the case of pointers/arrays)
+        return ast.Def(name.val, ("function",(arg_types,(ty,None))), args, body)
 
     #expects and consumes curly braces (e.g {<stmntlist>} )
     def statementlist(self,parent, line):
@@ -159,6 +165,7 @@ class Parser:
             line = self.pop().line
             #TODO: update this to include idents if/when I add typedefs
             if self.match("type"):
+                #TODO add proper type parsing (pointers, arrays, custom types, etc)
                 ty = self.pop().val
             else:
                 raise ValueError(f"expected type in let declaration on line {line}, saw {self.tl[0].val}")
@@ -168,7 +175,7 @@ class Parser:
                 raise ValueError(f"expected name in let declaration on line {line}, saw {self.tl[0].val}")
             self.consume("=", f"expected '=' in let declaration on line {line}, saw {self.tl[0].val}")
             ex = self.expr()
-            return ast.Let(name,ty,ex)
+            return ast.Let(name,(ty,None),ex)
         elif self.match("var"):
             line = self.pop().line
             #TODO: update this to include idents if/when I add typedefs
@@ -182,7 +189,7 @@ class Parser:
                 raise ValueError(f"expected name in var declaration on line {line}, saw {self.tl[0].val}")
             self.consume("=", f"expected '=' in var declaration on line {line}, saw {self.tl[0].val}")
             ex = self.expr()
-            return ast.Var(name,ty,ex)
+            return ast.Var(name,(ty,None),ex)
         elif self.match("if"):
             line = self.pop().line
             ex = self.expr()
@@ -246,10 +253,10 @@ class Parser:
         return self.primary()
 
     def primary(self):
-        if self.match('int'):
+        if self.match('int'): #this counts for ints and longs
             i = self.pop().val
             return (ast.Literal(i))
-        elif self.match('float'):
+        elif self.match('float'): #counts for floats and doubles
             f = self.pop().val
             return (ast.Literal(f))
         elif self.match('true'):
@@ -308,7 +315,7 @@ class Parser:
             else:
                 raise ValueError(f"expected type in {name} function definition, saw {self.tl[0].val} on line {self.tl[0].line}")
             if self.match('ident'):
-                arg_list.append((ty.val,self.pop().val))
+                arg_list.append(((ty.val,None),self.pop().val))
             else:
                 raise ValueError(f"expected arg name in {name} function definition, saw {self.tl[0].val} on line {self.tl[0].line}")
             if(self.match_val(',')):

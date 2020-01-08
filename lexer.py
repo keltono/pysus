@@ -134,6 +134,8 @@ class Lex:
             self.add('type','char')
         elif buff == 'bool':
             self.add('type','bool')
+        elif buff == 'long':
+            self.add('type','long')
         else:
             self.add('ident', buff)
        #TODO: add: and, or, for, null
