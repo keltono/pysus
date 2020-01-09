@@ -262,16 +262,16 @@ class Parser:
 
     def mult(self):
         expr = self.unary()
-        while(self.match_val('/','*')):
+        while(self.match_val('/','*','%')):
             op = self.pop().val
-            rhs = self.unary()
+            rhs = self.Unary()
             expr = ast.Binary(expr, op, rhs)
         return expr
 
     def unary(self):
         if(self.match_val('-','!')):
             op = self.pop().val
-            return ast.unary(op, unary())
+            return ast.Unary(op, self.unary())
         return self.primary()
 
     def primary(self):

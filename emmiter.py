@@ -70,11 +70,13 @@ class Emmiter:
         #e.g "%filename_1" : "i64"
         self.llVars = {}
 
+
         self.globalScope = self.Scope((self.outFile,"global"),None,-1)
 
         self.currentScope = self.globalScope
 
-        self.currLine = 0
+
+        self.emmit(f"; ModuleID = '{outFile}'\n")
 
         #TODO: handle typedefs & structs. maybe move this to the scope later?
         self.baseTypes =  {
@@ -91,21 +93,13 @@ class Emmiter:
     #adds a variable to the current scope. in theory, the llname will be provided by the previous step in codegen.
     #also adds it to the "llVar" list
     def addVariable(self,name, llname, lltype, isLit=False):
-        if isLit:
-            print(f"adding literal var, name = {name} llname = {llname} lltype = {lltype}")
-            self.currentScope.namedValues[name] = (llname, lltype)
-        else:
-            print(f"adding var, name = {name} llname = %{llname} lltype = {lltype}")
-            self.currentScope.namedValues[name] = ("%"+llname, lltype)
-            self.llVars["%"+llname] = lltype
+        self.currentScope.namedValues[name] = (llname, lltype)
+        if not isLit:
+            self.llVars[llname] = lltype
     def addGlobal(self, name, llname, lltype, isLit=False):
-        if isLit:
-            print(f"adding literal var, name = {name} llname = {llname} lltype = {lltype}")
-            self.currentScope.namedValues[name] = (llname, lltype)
-        else:
-            print(f"adding global, name = {name} llname = @{llname} lltype = {lltype}")
-            self.globalScope.namedValues[name] = ("@"+llname, lltype)
-            self.llVars["@"+llname] = lltype
+        self.currentScope.namedValues[name] = (llname, lltype)
+        if not isLit:
+            self.llVars[llname] = lltype
 
     #returns the llvm variable name given the "proper" variable name and type
     #e.g "foo" -> ("%example_2", "i32")

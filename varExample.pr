@@ -1,4 +1,4 @@
-def bool main(){
-    let bool x = true
+def int main(){
+    let int x = 2 + 2
     return x 
 }

@@ -80,6 +80,16 @@ class Lex:
                         self.add('kwd', '>=')
                     else:
                         self.add('kwd', '>')
+            elif ch == '!':
+                self.junk()
+                if len(self.in_str) == 0:
+                    self.add('kwd', '!')
+                else:
+                    if self.in_str[0] == '=':
+                        self.junk()
+                        self.add('kwd', '!=')
+                    else:
+                        self.add('kwd', '!')
 
             elif ch == '=':
                 self.junk()

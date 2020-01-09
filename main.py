@@ -23,7 +23,7 @@ print(ast)
 try:
     cdg = codegen.Codegen(sys.argv[2], ast)
 except IndexError:
-    cdg = codegen.Codegen("a.out", ast)
+    cdg = codegen.Codegen("out.ll", ast)
 
 cdg.codegen()
 

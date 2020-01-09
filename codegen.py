@@ -52,7 +52,7 @@ class Codegen:
         self.codegenStatementList(d.body)
         self.e.scopeDown()
         print(self.e.currentScope.name)
-        self.e.emmit("}")
+        self.e.emmit("}\n")
 
     def codegenStatementList(self, l):
         if l == None:
@@ -63,7 +63,6 @@ class Codegen:
     #doesn't return anything, unlike the codegenExpr
     def codegenStatement(self, s):
         ty = type(s)
-
         if ty == ast.Return:
             expr = self.codegenExpr(s.returning)
             funcReturnType = self.e.getLLVariable(self.e.currentScope.name[1])[1][1] #self.e.currentScope.name[0] is the file name
@@ -75,7 +74,7 @@ class Codegen:
             if self.canConvert(expr[1], funcReturnType):
                 self.e.emmit(f"ret {funcReturnType} {expr[0]}")
             else:
-                raise ValueError(f"return type mismatch in function {self.e.currentScope.name}: expected a(n) {funcReturnType}, saw an int")
+                raise ValueError(f"return type mismatch in function {self.e.currentScope.name}: expected a(n) {funcReturnType}, saw {expr}")
             #the way I'm doing this right now will basically require me to have a special case for literals *anytime* i use a function
 
 
@@ -118,23 +117,132 @@ class Codegen:
         t = type(ex)
         if t == ast.Literal:
             #TODO string and char literals
-            if ex.val == True:
+            if ex.val == True and type(ex.val) == bool:
                 return ("1","bool")
-            elif ex.val == False:
+            elif ex.val == False and type(ex.val) == bool:
                 return ("0","bool")
             elif type(ex.val) == float:
                 return (str(ex.val),"floating")
-            elif type(ex.val) == "int":
+            elif type(ex.val) == int:
                 return (str(ex.val), "int")
             else:
-                raise ValueError(f"what the heck is this? I expected a literal of *some kind* but i saw {ex.val}")
+                raise ValueError(f"what the heck is this? I expected a literal of *some kind* but i saw {ex.val} in {ex}")
         #Variable reference, not a var declaration. returns ("llvm_name", "llvm_type")
         #e.g ("%1","i64")
         elif t == ast.Variable:
             return self.e.getLLVariable(ex.name)
-        # elif t == ast.Binary:
-            #TODO
-            # pass
+        elif t == ast.Binary:
+            #left recursion is fine here because eventually lhs won't be an binary expression
+            lhs = self.codegenExpr(ex.lhs)
+            rhs = self.codegenExpr(ex.rhs)
+
+            if self.canConvert(lhs[1],rhs[1]):
+                ty = rhs[1]
+            elif self.canConvert(rhs[1], lhs[1]):
+                ty = lhs[1]
+            else:
+                raise ValueError(f"type mismatch between {lhs} and {rhs} in {ex}")
+            if ty == "int":
+                ty = "i32"
+            elif ty == "floating":
+                ty = "double"
+            elif ty == "bool":
+                ty == "i1"
+
+            name = "%"+self.e.getName()
+            if ex.op == "+":
+                if ty == "float" or ty == "double":
+                    self.e.emmit(f"{name} = fadd {ty} {lhs[0]}, {rhs[0]}")
+                elif ty[0] == "i":
+                    self.e.emmit(f"{name} = add {ty} {lhs[0]}, {rhs[0]}")
+                else:
+                    raise ValueError(f"Error: Type {ty} incompatable with + in {ex}")
+                return (name, ty)
+            elif ex.op == "-":
+                if ty == "float" or ty == "double":
+                    self.e.emmit(f"{name} = fsub {ty} {lhs[0]}, {rhs[0]}")
+                elif ty[0] == "i":
+                    self.e.emmit(f"{name} = sub {ty} {lhs[0]}, {rhs[0]}")
+                else:
+                    raise ValueError(f"Error: Type {ty} incompatable with - in {ex}")
+                return (name, ty)
+            elif ex.op == "*":
+                if ty == "float" or ty == "double":
+                    self.e.emmit(f"{name} = fmul {ty} {lhs[0]}, {rhs[0]}")
+                elif ty[0] == "i":
+                    self.e.emmit(f"{name} = mul {ty} {lhs[0]}, {rhs[0]}")
+                else:
+                    raise ValueError(f"Error: Type {ty} incompatable with * in {ex}")
+                return (name, ty)
+            #no unsigned types for the time being
+            elif ex.op == "/":
+                if ty == "float" or ty == "double":
+                    self.e.emmit(f"{name} = fdiv {ty} {lhs[0]}, {rhs[0]}")
+                elif ty[0] == "i":
+                    self.e.emmit(f"{name} = sdiv {ty} {lhs[0]}, {rhs[0]}")
+                else:
+                    raise ValueError(f"Error: Type {ty} incompatable with / in {ex}")
+                return (name, ty)
+            elif ex.op == "%":
+                if ty == "float" or ty == "double":
+                    self.e.emmit(f"{name} = frem {ty} {lhs[0]}, {rhs[0]}")
+                elif ty[0] == "i":
+                    self.e.emmit(f"{name} = srem {ty} {lhs[0]}, {rhs[0]}")
+                else:
+                    raise ValueError(f"Error: Type {ty} incompatable with % in {ex}")
+                return (name, ty)
+            elif ex.op == "==":
+                if ty == "float" or ty == "double":
+                    self.e.emmit(f"{name} = fcmp oeq {ty} {lhs[0]}, {rhs[0]}")
+                elif ty[0] == "i":
+                    self.e.emmit(f"{name} = icmp eq {ty} {lhs[0]}, {rhs[0]}")
+                else:
+                    raise ValueError(f"Error: Type {ty} incompatable with == in {ex}")
+                return (name, "i1")
+            elif ex.op == "!=":
+                if ty == "float" or ty == "double":
+                    self.e.emmit(f"{name} = fcmp one {ty} {lhs[0]}, {rhs[0]}")
+                elif ty[0] == "i":
+                    self.e.emmit(f"{name} = icmp ne {ty} {lhs[0]}, {rhs[0]}")
+                else:
+                    raise ValueError(f"Error: Type {ty} incompatable with == in {ex}")
+                return (name, "i1")
+            elif ex.op == "<":
+                if ty == "float" or ty == "double":
+                    self.e.emmit(f"{name} = fcmp olt {ty} {lhs[0]}, {rhs[0]}")
+                elif ty[0] == "i":
+                    self.e.emmit(f"{name} = icmp slt {ty} {lhs[0]}, {rhs[0]}")
+                else:
+                    raise ValueError(f"Error: Type {ty} incompatable with < in {ex}")
+                return (name, "i1")
+            elif ex.op == "<=":
+                if ty == "float" or ty == "double":
+                    self.e.emmit(f"{name} = fcmp ole {ty} {lhs[0]}, {rhs[0]}")
+                elif ty[0] == "i":
+                    self.e.emmit(f"{name} = icmp sle {ty} {lhs[0]}, {rhs[0]}")
+                else:
+                    raise ValueError(f"Error: Type {ty} incompatable with <= in {ex}")
+                return (name, "i1")
+            elif ex.op == ">":
+                if ty == "float" or ty == "double":
+                    self.e.emmit(f"{name} = fcmp ogt {ty} {lhs[0]}, {rhs[0]}")
+                elif ty[0] == "i":
+                    self.e.emmit(f"{name} = icmp sgt {ty} {lhs[0]}, {rhs[0]}")
+                else:
+                    raise ValueError(f"Error: Type {ty} incompatable with > in {ex}")
+                return (name, "i1")
+            elif ex.op == ">=":
+                if ty == "float" or ty == "double":
+                    self.e.emmit(f"{name} = fcmp oge {ty} {lhs[0]}, {rhs[0]}")
+                elif ty[0] == "i":
+                    self.e.emmit(f"{name} = icmp sge {ty} {lhs[0]}, {rhs[0]}")
+                else:
+                    raise ValueError(f"Error: Type {ty} incompatable with >= in {ex}")
+                return (name, "i1")
+
+            else:
+                raise ValueError(f"unrecognized operation {ex.op} in {ex}")
+
         else:
             raise ValueError(f"{ex} isn't an expr dummy!")
 
@@ -145,11 +253,11 @@ class Codegen:
     #literals are given types, and any ad-hoc polymorphism must be handled by the individual function (so + will theoretically have casts built in)
     def canConvert(self,typeFrom,typeTo):
         if typeFrom == "int":
-            return typeTo[0] == 'i'
+            return typeTo[0] == 'i' or typeTo== "int"
         elif typeFrom == "floating":
-            return typeTo == "float" or typeTo == "double"
+            return typeTo == "float" or typeTo == "double" or "floating"
         elif typeFrom == "bool":
-            return typeTo == "i1"
+            return typeTo[0] == "i" or typeTo == "bool"
         else:
             return typeFrom == typeTo
 
