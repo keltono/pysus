@@ -185,7 +185,10 @@ class Parser:
                 raise ValueError(f"expected type in let declaration on line {line}, saw {self.tl[0].val}")
             self.consume("=", f"expected '=' in let declaration on line {line}, saw {self.tl[0].val}")
             ex = self.expr()
-            return ast.Let(name,(ty,None),ex)
+            if ty != None:
+                return ast.Let(name,(ty,None),ex)
+            else:
+                return ast.Let(name,None,ex)
 
         elif self.match("var"):
             line = self.pop().line
@@ -264,7 +267,7 @@ class Parser:
         expr = self.unary()
         while(self.match_val('/','*','%')):
             op = self.pop().val
-            rhs = self.Unary()
+            rhs = self.unary()
             expr = ast.Binary(expr, op, rhs)
         return expr
 

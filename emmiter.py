@@ -149,9 +149,23 @@ class Emmiter:
                 #TODO line reporting error handling
                 #maybe develop a proper stack trace error reporting system?
                 raise ValueError(f"unknown type {ty[0]}")
-    def scopeUp(self, name):
-        newScope = self.Scope((self.outFile, name), self.currentScope,self.currentScope.indent + 1)
+    def scopeUp(self, name, increment = True):
+        if increment:
+            newScope = self.Scope((self.outFile, name), self.currentScope,self.currentScope.indent + 1)
+        else:
+            newScope = self.Scope((self.outFile, name), self.currentScope,self.currentScope.indent)
         self.currentScope = newScope
+
+    #TODO
+    def getCurrFuncType(self):
+        scopeTmp = self.currentScope
+        while scopeTmp.name != "global":
+            try:
+                return self.currentScope.getNamedValue(scopeTmp.name)[1]
+            except:
+                scopeTmp = scopeTmp.parent
+        return None
+
 
     def scopeDown(self):
         self.currentScope = self.currentScope.parent
@@ -161,6 +175,9 @@ class Emmiter:
 
     def emmit(self, output):
         self.fd.write(self.currentScope.indentStr+output+"\n")
+
+    def emmitLabel(self, label):
+        self.fd.write(label+":\n")
 
     def close(self):
         self.fd.close()

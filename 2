@@ -29,7 +29,7 @@ class Codegen:
         self.e.scopeUp(d.name)
         self.e.setIndent(-1)
 
-        self.e.addGlobal(d.name,"@"+d.name,self.e.typeToLLType(d.type))
+        self.e.addGlobal(d.name,d.name,self.e.typeToLLType(d.type))
         defline = f"define {self.e.typeToLLType(d.type[1][1])} @{d.name}("
         #args are stored as tuples in the form (type,name)
         #where type is a tuple of ("typeName",info)
@@ -66,7 +66,10 @@ class Codegen:
         if ty == ast.Return:
             expr = self.codegenExpr(s.returning)
 
-            funcReturnType = self.e.getCurrFuncType()
+            #TODO: returning is broken in if statements right now because the scope may or may not be a function now
+            #TODO: NOTE! ISSUE WITH LET DECS OVERLAPPING CAN BE SOLVED WITH PHI EXPRESSIONS! LOOK INTO THAT!
+            funcReturnType = self.e.getLLVariable(self.e.currentScope.name[1])[1][1] #self.e.currentScope.name[0] is the file name
+            #[1][1] because what's returned is ("@funcname",(["argTypes"], "returnType"))
             #check and see if it incorrectly assumed literal type based on function return type, and readjust if needed
             #this will probably need to be reworked given oop
             #in order to deal with the weak type system, SSA variables returned from codegen are 2-tuples of the form ("%name", "lltype")
