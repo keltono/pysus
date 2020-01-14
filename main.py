@@ -12,8 +12,6 @@ lex = lexer.Lex(in_str)
 
 tokens = lex.lex()
 
-print(tokens)
-
 par = parser.Parser(tokens)
 
 ast = par.parse()

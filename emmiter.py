@@ -1,12 +1,7 @@
-#Note: this file has a lot of comments. this is partially good for understanding, but it's kind of rambly I used the comments to replace my whiteboard a good chunk of the time.
-#TODO: handle scope switching (up and down in and out of functions)
-#TODO: handle tags (probably just need something like a list of tags and line numbers in the scope, and a current tag var (all of which with line no.s)
-#TODO: actually emmiting to a file
-#TODO: write helper methods to emit spesific commands
-
+from value import Value
+#Note: this file has a lot of comments. this is partially good for understanding, but it's kind of rambly. I used the comments to replace my whiteboard a good chunk of the time.
 #handles llvm contexts, states, scopes, oh my!
 class Emmiter:
-
         #class that manages handling of scope. general idea is that it functions as a wrapper around a dictionary for the most part,
         #unless it cannot find a symbol in the dictionary, in which case it goes to a "higher level scope" (e.g the global scope if the current scope is a function scope)
     class Scope:
@@ -43,8 +38,8 @@ class Emmiter:
                 c+=1
 
         #these do as it says on the tin, as described above
-        def addNamedValue(self,name,llvar,lltype):
-            self.namedValues[name] = (llvar, lltype)
+        def addNamedValue(self,name,llvar,lltype,category, isLit=False):
+            self.namedValues[name] = Value(llvar,lltype,category, isLit)
         def getNamedValue(self,name):
             try:
                 return self.namedValues[name]
@@ -83,6 +78,7 @@ class Emmiter:
             "int" : "i32",
             "long" : "i64",
             "float" : "float",
+            "floating": "double",
             "double" : "double",
             "bool" : "i1",
             "char" : "i8"
@@ -92,18 +88,17 @@ class Emmiter:
 
     #adds a variable to the current scope. in theory, the llname will be provided by the previous step in codegen.
     #also adds it to the "llVar" list
-    def addVariable(self,name, llname, lltype, isLit=False):
-        self.currentScope.namedValues[name] = (llname, lltype)
+    def addVariable(self,name, llname, lltype, category, isLit=False):
+        self.currentScope.addNamedValue(name, llname, lltype, category, isLit)
         if not isLit:
             self.llVars[llname] = lltype
-    def addGlobal(self, name, llname, lltype, isLit=False):
-        self.currentScope.namedValues[name] = (llname, lltype)
+    def addGlobal(self, name, llname, lltype, category, isLit=False):
+        self.globalScope.addNamedValue(name, llname, lltype, category, isLit)
         if not isLit:
             self.llVars[llname] = lltype
 
     #returns the llvm variable name given the "proper" variable name and type
-    #e.g "foo" -> ("%example_2", "i32")
-    #the way i'm storing vars has a lot of redundency... probably not good.
+    #e.g "foo" -> NamedValue("%example_0x2", "i32", "var", False)
     def getLLVariable(self,var):
         return self.currentScope.getNamedValue(var)
     #returns the llvm variable type given the llvm variable name
@@ -113,7 +108,6 @@ class Emmiter:
         try:
             return self.llVars[var]
         except KeyError:
-            print(self.llVars)
             raise KeyError(f"Uknown variable or function {var}")
 
     def getName(self):
@@ -131,6 +125,7 @@ class Emmiter:
     #or ("function",([("int",None),("int",None)],("int", None)))
     def typeToLLType(self, ty):
         try:
+            print(f"typeToLLType {ty}")
             return self.baseTypes[ty[0]]
         except:
             #semi-related: I'm going to have to think long and hard how to handle arrays at any sort of hight level
@@ -156,15 +151,14 @@ class Emmiter:
             newScope = self.Scope((self.outFile, name), self.currentScope,self.currentScope.indent)
         self.currentScope = newScope
 
-    #TODO
     def getCurrFuncType(self):
         scopeTmp = self.currentScope
-        while scopeTmp.name != "global":
+        while scopeTmp.parent != None:
             try:
-                return self.currentScope.getNamedValue(scopeTmp.name)[1]
+                return self.currentScope.getNamedValue(scopeTmp.name[1]).type
             except:
                 scopeTmp = scopeTmp.parent
-        return None
+        raise ValueError("Error: no function in scope!")
 
 
     def scopeDown(self):

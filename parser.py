@@ -240,6 +240,14 @@ class Parser:
     #logic for parsing exprs. each function represents a grammar (or two) spesified above.
     #these multiple function deal with order of operations. lowest down in the chain (unary,mult) have highest precedence.
     def expr(self):
+        expr = self.equal()
+        while(self.match_val('=')):
+            op = self.pop().val
+            rhs = self.compare()
+            expr = ast.Binary(expr, op, rhs)
+        return expr
+
+    def equal(self):
         expr = self.compare()
         while(self.match_val('==','!=')):
             op = self.pop().val
