@@ -55,6 +55,10 @@ class Unary(Expr):
 class Variable(Expr):
     def __init__(self, name):
         self.name= name
+    def __repr__(self):
+        return f"(var: {self.name})"
+    def __str__(self):
+        return f"(var: {self.name})"
 
 class Call(Expr):
     def __init__(self, name, args):
@@ -112,11 +116,11 @@ class Var(Statement):
         return f"var {self.type} {self.name} = {self.val}"
 
 class Assign(Statement): #for re assignment of a var. doesn't make sense for it to be an expr now
-    def __init__(self, var, val):
-        self.var = var
-        self.val = val
+    def __init__(self, lhs, rhs):
+        self.lhs = lhs
+        self.rhs = rhs
     def __repr__(self):
-        return f"{self.var} = {self.val}"
+        return f"{self.lhs} = {self.rhs}"
 
 class If(Statement):
     def __init__(self, condition, thenbody, elsebody=None):

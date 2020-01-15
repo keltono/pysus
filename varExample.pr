@@ -1,4 +1,5 @@
 def int main(){
-    let int x = 2 + 2
+    var int x = 2 + 2
+    x = 2
     return x 
 }

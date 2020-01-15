@@ -27,7 +27,7 @@ class Codegen:
         #TODO support nested functions. they'll have to be generated outside of the function somehow
         #not totally sure how to handle that given the recusive-desent-esq control flow.
         #probably just something like a list of things that need to be genrated next, that's referenced after a function is generated.
-        self.e.scopeUp(d.name)
+        self.e.scopeUp(d.name, isFunction = True)
         self.e.setIndent(-1)
 
         self.e.addGlobal(d.name,"@"+d.name,self.e.typeToLLType(d.type), "function", False)
@@ -65,12 +65,7 @@ class Codegen:
             expr = self.codegenExpr(s.returning)
 
             funcReturnType = self.e.getCurrFuncType()[1]
-            #check and see if it incorrectly assumed literal type based on function return type, and readjust if needed
-            #this will probably need to be reworked given oop
-            #in order to deal with the weak type system, SSA variables returned from codegen are 2-tuples of the form ("%name", "lltype")
-            #bit of a hack, but eh. if it's stupid and it works...
-            #TODO
-            #the levels of types here is getting really messy. types at the language level vs types at the llvm is getting mixed in my head...
+
             if self.canConvert(expr, funcReturnType):
                 self.e.emmit(f"ret {funcReturnType} {expr.val}")
             else:
@@ -85,7 +80,7 @@ class Codegen:
         elif ty == ast.Let:
             #I *could* make it so you can't re-let variables, but where's the fun in that?
             expr = self.codegenExpr(s.val)
-            if expr.type[-1] == "*":
+            if expr.type[-1] == "*" or expr.category == "var":
                 raise ValueError(f"you can't use a let declaration on a pointer dummy! {s}")
             if s.type == None:
                 ty = expr.type
@@ -95,13 +90,37 @@ class Codegen:
                     ty = letLLType
                 else:
                     #probably shouldn't emmit SSA values in error reporting...
-                    raise ValueError(f"Expected a {letLLType} in let delcaration in function {self.e.currentScope.name[1]}, saw {expr}")
-            print(f"let var expr: {expr}")
+                    raise ValueError(f"Expected a {letLLType} in let delcaration in {self.e.currentScope.name[1]}, saw {expr}")
             self.e.addVariable(s.name, expr.val, ty, "let", expr.isLit)
 
+        elif ty == ast.Assign:
+            rhs = self.codegenExpr(s.rhs)
+            lhs = self.e.getLLVariable(s.lhs)
+            if lhs.category != "var":
+                raise ValueError(f"can't re-assign non-var variables. {s}")
+            if rhs.isLit:
+                if (rhs.type =="i32" or rhs.type == "i1") and lhs.type[0] == "i":
+                    rhs.type = lhs.type[:-1]
+                elif rhs.type == "double" and lhs.type == "float*":
+                    rhs.type = "float"
+            if lhs.type != rhs.type +"*":
+                raise ValueError(f"type mismatch in assignment {s} lhs: {lhs.type} rhs: {rhs.type}")
+            self.e.emmit(f"store {rhs.type} {rhs.val}, {lhs.type} {lhs.val}")
+
         elif ty == ast.Var:
-            #i should be storing what kind of variable (func, var, let)  named values are...
-            pass
+            expr = self.codegenExpr(s.val)
+            if s.type == None:
+                ty = expr.type
+            else:
+                varLLType = self.e.typeToLLType(s.type)
+                if self.canConvert(expr, varLLType):
+                    ty = varLLType
+                else:
+                    raise ValueError(f"Expected a {letLLType} in var delcaration in {self.e.currentScope.name[1]}, saw {expr}")
+            varName = "%"+self.e.getName()
+            self.e.emmit(f"{varName} = alloca {ty}")
+            self.e.emmit(f"store {ty} {expr.val}, {ty}* {varName}")
+            self.e.addVariable(s.name, varName, ty+"*", "var", expr.isLit)
 
 
         elif ty == ast.If:
@@ -114,12 +133,12 @@ class Codegen:
             cmpName = "%"+self.e.getName()
             thenName = self.e.getName()+"_then"
             failName = self.e.getName()+"_iffail"
-            self.e.emmit(f"{cmpName} = icmp neq {cond.type} {cond.val}, 0")
+            self.e.emmit(f"{cmpName} = icmp ne {cond.type} {cond.val}, 0")
             self.e.emmit(f"br i1 {cmpName}, label %{thenName}, label %{failName}")
             self.e.emmitLabel(thenName)
 
             scopeName = self.e.getName()
-            self.e.scopeUp(scopeName+"_then",increment=False)
+            self.e.scopeUp(scopeName+"_then",False,increment=False)
             self.codegenStatementList(s.thenbody)
             self.e.scopeDown()
 
@@ -129,12 +148,12 @@ class Codegen:
                 self.e.emmitLabel(failName)
             else:
                 doneName = self.e.getName()+"_ifdone"
-                self.e.emmit(f"br label {doneName}")
+                self.e.emmit(f"br label %{doneName}")
                 self.e.emmitLabel(failName)
-                self.e.scopeUp(scopeName+"_else", increment=False)
+                self.e.scopeUp(scopeName+"_else",isFunction=False,increment=False)
                 self.codegenStatementList(s.elsebody)
                 self.e.scopeDown()
-                self.e.emmit(f"br label {doneName}")
+                self.e.emmit(f"br label %{doneName}")
                 self.e.emmitLabel(doneName)
 
         else:
@@ -159,7 +178,16 @@ class Codegen:
                 raise ValueError(f"what the heck is this? I expected a literal of *some kind* but i saw {ex.val} in {ex}")
         #Variable reference, not a var declaration. returns a NamedValue object
         elif t == ast.Variable:
-            return self.e.getLLVariable(ex.name)
+            var = self.e.getLLVariable(ex.name)
+            if var.category == "let":
+                return var
+            elif var.category == "var":
+                loadName = "%"+self.e.getName()
+                #take off a pointer level
+                loadType = var.type[:-1]
+                self.e.emmit(f"{loadName} = load {loadType}, {var.type} {var.val}")
+                #TODO see if calling both the var pointer and the var result "var" causes issues
+                return Value(loadName, loadType, "var", False)
         elif t == ast.Binary:
             #left recursion is fine here because eventually lhs won't be an binary expression
             lhs = self.codegenExpr(ex.lhs)

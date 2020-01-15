@@ -5,7 +5,7 @@ class Emmiter:
         #class that manages handling of scope. general idea is that it functions as a wrapper around a dictionary for the most part,
         #unless it cannot find a symbol in the dictionary, in which case it goes to a "higher level scope" (e.g the global scope if the current scope is a function scope)
     class Scope:
-        def __init__(self,name,parent,indent):
+        def __init__(self,name,parent,isFunction, indent):
             #a dictionary containing all named values in the scope, in the form of
             #name : ('llvm_var_name','llvm_type')
             #for now all functions are added to the global scope, but that's most likely due to change.
@@ -66,7 +66,7 @@ class Emmiter:
         self.llVars = {}
 
 
-        self.globalScope = self.Scope((self.outFile,"global"),None,-1)
+        self.globalScope = self.Scope((self.outFile,"global"),None,False,-1)
 
         self.currentScope = self.globalScope
 
@@ -125,7 +125,6 @@ class Emmiter:
     #or ("function",([("int",None),("int",None)],("int", None)))
     def typeToLLType(self, ty):
         try:
-            print(f"typeToLLType {ty}")
             return self.baseTypes[ty[0]]
         except:
             #semi-related: I'm going to have to think long and hard how to handle arrays at any sort of hight level
@@ -144,11 +143,12 @@ class Emmiter:
                 #TODO line reporting error handling
                 #maybe develop a proper stack trace error reporting system?
                 raise ValueError(f"unknown type {ty[0]}")
-    def scopeUp(self, name, increment = True):
+    def scopeUp(self, name, isFunction,increment = True):
         if increment:
-            newScope = self.Scope((self.outFile, name), self.currentScope,self.currentScope.indent + 1)
+            i = 1
         else:
-            newScope = self.Scope((self.outFile, name), self.currentScope,self.currentScope.indent)
+            i = 0
+        newScope = self.Scope((self.outFile, name), self.currentScope, isFunction, self.currentScope.indent + i)
         self.currentScope = newScope
 
     def getCurrFuncType(self):
