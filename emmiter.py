@@ -9,7 +9,7 @@ class Emmiter:
             #a dictionary containing all named values in the scope, in the form of
             #name : ('llvm_var_name','llvm_type')
             #for now all functions are added to the global scope.
-            #functions are stored as a Value object
+            #functions are stored as a Value objects
             self.namedValues = {}
             #tuple of the filename and function name or "global"
             #e.g ("example", "global")
