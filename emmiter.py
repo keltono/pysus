@@ -8,9 +8,8 @@ class Emmiter:
         def __init__(self,name,parent,isFunction, indent):
             #a dictionary containing all named values in the scope, in the form of
             #name : ('llvm_var_name','llvm_type')
-            #for now all functions are added to the global scope, but that's most likely due to change.
-            #functions are stored as a tuple of a list of arg types and a return type
-            #e.g ("@functionName", (["i64","i32"],"double"))
+            #for now all functions are added to the global scope.
+            #functions are stored as a Value object
             self.namedValues = {}
             #tuple of the filename and function name or "global"
             #e.g ("example", "global")

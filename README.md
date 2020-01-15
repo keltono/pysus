@@ -6,8 +6,8 @@ Hopefully it will fall into some niche overlap between rust, C++, and maybe OCam
 ##TODOS:
 ####A quick personal list of things to implement (in order of intent to implement)
 
-* Var declarations
 * function calls
+* external function declaration
 * return statements within ifs
 * while loops ("for"s will come later, in theory will be pythonic, e.g. "for x in y")
 * pointers (referencing and dereferencing)

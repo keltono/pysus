@@ -1,12 +1,14 @@
 ; ModuleID = 'out.ll'
 
-define i32 @main() {
-entry:
-	%out_0x0 = add i32 2, 2
-	%out_0x1 = alloca i32
-	store i32 %out_0x0, i32* %out_0x1
-	store i32 2, i32* %out_0x1
-	%out_0x2 = load i32, i32* %out_0x1
+define i32 @add1(i32 %out_0x0) {
+out_0x1_entry:
+	%out_0x2 = add i32 %out_0x0, 1
 	ret i32 %out_0x2
+}
+
+define i32 @main() {
+out_0x3_entry:
+	%out_0x4 = call i32 @add1(i32 3)
+	ret i32 %out_0x4
 }
 

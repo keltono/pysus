@@ -1,6 +1,8 @@
 #this file handles the actual creation of IR based on input, emmiter.py handles the logic of emmiting IR
 #i.e emmiter.py replaces the llvm library, and codegen.py does what it says on the tin
-#well, kind of. codegen.py handles a lot of what the llvm library handles, emmiter.py really just handles the admin that comes with complex programs#the actual logic for deciding what line to write is here.
+#well, kind of. codegen.py handles a lot of what the llvm library handles, emmiter.py really just handles the admin that comes with complex programs
+#the actual logic for deciding what line to write is here.
+#this could probably benefit from a sperate semantic analysis phase...
 
 import ast
 import emmiter
@@ -36,19 +38,20 @@ class Codegen:
         #where type is a tuple of ("typeName",info)
         #(covered more in depth in emmiter.py)
         if d.args != []:
-            llname = self.e.getName()
+            llname = "%"+self.e.getName()
             lltype = self.e.typeToLLType(d.args[0][0])
             self.e.addVariable(d.args[0][1], llname, lltype, "arg")
-            defline +=f"{lltype} %{llname}"
+            defline +=f"{lltype} {llname}"
             d.args = d.args[1:]
             for arg in d.args:
-                llname = self.e.getName()
+                llname = "%"+self.e.getName()
                 lltype = self.e.typeToLLType(arg[0])
                 self.e.addVariable(arg[1], llname, lltype)
-                defline +=f", {lltype} %{llname}"
+                defline +=f", {lltype} {llname}"
         defline +=") {"
         self.e.emmit(defline)
-        self.e.emmitLabel("entry")
+        #TODO? keep track of labels in the scope?
+        self.e.emmitLabel(f"{self.e.getName()}_entry")
         self.e.setIndent(0)
         self.codegenStatementList(d.body)
         self.e.scopeDown()
@@ -179,7 +182,7 @@ class Codegen:
         #Variable reference, not a var declaration. returns a NamedValue object
         elif t == ast.Variable:
             var = self.e.getLLVariable(ex.name)
-            if var.category == "let":
+            if var.category == "let" or "arg":
                 return var
             elif var.category == "var":
                 loadName = "%"+self.e.getName()
@@ -188,6 +191,34 @@ class Codegen:
                 self.e.emmit(f"{loadName} = load {loadType}, {var.type} {var.val}")
                 #TODO see if calling both the var pointer and the var result "var" causes issues
                 return Value(loadName, loadType, "var", False)
+            else:
+                raise ValueError(f"uknown category {var.category}")
+        elif t == ast.Call:
+            argExprs = []
+            for arg in ex.args:
+                argExprs.append(self.codegenExpr(arg))
+            try:
+                 func = self.e.getLLVariable(ex.name)
+            except ValueError:
+                raise ValueError(f"uknown function {ex.name} in function call")
+            argStr = ""
+            for index, arg in enumerate(argExprs):
+                #func.type[0] is the arg types
+                if arg.type != func.type[0][index]:
+                    if arg.isLit:
+                        if not canConvert(arg,func.type[0][index]):
+                            raise ValueError(f"type mismatch between argument {index + 1} {arg} and function {func} in call {s}: expected {func.type[0][index]}, saw {arg.type}")
+                    else:
+                        raise ValueError(f"type mismatch between argument {index + 1} {arg} and function {func} in call {s}: expected {func.type[0][index]}, saw {arg.type}")
+                if index == 0:
+                    argStr+= f"{arg.type} {arg.val}"
+                else:
+                    argStr+= f",{arg.type} {arg.val}"
+
+            llName = "%"+self.e.getName()
+            self.e.emmit(f"{llName} = call {func.type[1]} {func.val}({argStr})")
+            return Value(llName, func.type[1], "unnamed", False)
+
         elif t == ast.Binary:
             #left recursion is fine here because eventually lhs won't be an binary expression
             lhs = self.codegenExpr(ex.lhs)

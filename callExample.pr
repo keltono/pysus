@@ -1,0 +1,7 @@
+def int add1(int a){
+    return a + 1
+}
+
+def int main(){
+    return add1(3)
+}
