@@ -33,7 +33,10 @@ class Codegen:
         self.e.setIndent(-1)
 
         self.e.addGlobal(d.name,"@"+d.name,self.e.typeToLLType(d.type), "function", False)
-        defline = f"define {self.e.typeToLLType(d.type[1][1])} @{d.name}("
+
+        returnType = self.e.typeToLLType(d.type[1][1])
+
+        defline = f"define {returnType} @{d.name}("
         #args are stored as tuples in the form (type,name)
         #where type is a tuple of ("typeName",info)
         #(covered more in depth in emmiter.py)
@@ -53,9 +56,24 @@ class Codegen:
         #TODO? keep track of labels in the scope?
         self.e.emmitLabel(f"{self.e.getName()}_entry")
         self.e.setIndent(0)
+
+        #TODO maybe make it be like unit in ocaml instead of "void"?
+        if returnType != "void":
+            returnValue = "%"+self.e.getName()+"_return"
+            self.e.emmit(f"{returnValue} = alloca {returnType} ")
+            self.e.setReturnValue(returnValue)
+            returnLabel = self.e.getName()+"_returnLabel"
+            self.e.setFuncReturnLabel(returnLabel)
+
         self.codegenStatementList(d.body)
-        self.e.scopeDown()
+        if returnType != "void":
+            self.e.emmitLabel(returnLabel)
+            retLoadName = "%"+self.e.getName()
+            self.e.emmit(f"{retLoadName} = load {returnType}, {returnType}* {returnValue}")
+            self.e.emmit(f"ret {returnType} {retLoadName}")
+        self.e.setIndent(-1)
         self.e.emmit("}\n")
+        self.e.scopeDown()
 
     def codegenStatementList(self, l):
         if l != None:
@@ -68,12 +86,19 @@ class Codegen:
             expr = self.codegenExpr(s.returning)
 
             funcReturnType = self.e.getCurrFuncType()[1]
+            returnValue = self.e.getReturnValue()
+
+            #TODO returns in void functions jumping to the end
+            if funcReturnType == "void":
+                raise ValueError(f"return statement in function with 'void' return type {s} in function {self.e.getCurrFunc()}")
+            if returnValue == None:
+                raise ValueError(f"no returnValue in function {self.e.getCurrFunc()} for return statement {s}")
+
+            self.e.setCurrReturnLabel()
 
             if self.canConvert(expr, funcReturnType):
-                self.e.emmit(f"ret {funcReturnType} {expr.val}")
+                self.e.emmit(f"store {funcReturnType} {expr.val}, {funcReturnType}* {returnValue}")
             else:
-                print(expr.type)
-                print(funcLLReturnType)
                 raise ValueError(f"return type mismatch in function {self.e.currentScope.name}: expected a(n) {funcReturnType}, saw {expr}")
             #the way I'm doing this right now will basically require me to have a special case for literals *anytime* i use a function
 
@@ -143,21 +168,34 @@ class Codegen:
             scopeName = self.e.getName()
             self.e.scopeUp(scopeName+"_then",False,increment=False)
             self.codegenStatementList(s.thenbody)
+            doneName = self.e.getName()+"_ifdone"
+            ifReturns = False
+
+            if self.e.currHasReturnLabel:
+                self.e.emmit(f"br label %{self.e.getFuncReturnLabel()}")
+                ifReturns = True
+            elif s.elsebody == None:
+                self.e.emmit(f"br label %{failName}")
+            else:
+                self.e.emmit(f"br label %{doneName}")
+
+            self.e.emmitLabel(failName)
             self.e.scopeDown()
 
-            #ifs, like C, unlike python, have their own scopes.
             if s.elsebody == None:
-                self.e.emmit(f"br label {failName}")
-                self.e.emmitLabel(failName)
+                return
+
+            self.e.scopeUp(scopeName+"_else",isFunction=False,increment=False)
+            self.codegenStatementList(s.elsebody)
+
+            if self.e.currHasReturnLabel:
+                self.e.emmit(f"br label %{self.e.getFuncReturnLabel()}")
+                if ifReturns:
+                    return
             else:
-                doneName = self.e.getName()+"_ifdone"
                 self.e.emmit(f"br label %{doneName}")
-                self.e.emmitLabel(failName)
-                self.e.scopeUp(scopeName+"_else",isFunction=False,increment=False)
-                self.codegenStatementList(s.elsebody)
-                self.e.scopeDown()
-                self.e.emmit(f"br label %{doneName}")
-                self.e.emmitLabel(doneName)
+            self.e.emmitLabel(doneName)
+            self.e.scopeDown()
 
         else:
             self.codegenExpr(s)

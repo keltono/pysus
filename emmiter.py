@@ -21,6 +21,15 @@ class Emmiter:
             #parent is None for the global scope
             self.parent = parent
 
+            self.retLabel = None
+
+            if parent == None:
+                self.retValue = None
+            else:
+                self.retValue = parent.retValue
+
+            # self.isFunction = isFunction
+
             #literally what it says on the tin. how many times it should indent when emmiting.
             self.indent = indent
 
@@ -109,6 +118,37 @@ class Emmiter:
         except KeyError:
             raise KeyError(f"Uknown variable or function {var}")
 
+    def getCurrFuncType(self):
+        return self.getCurrFunc().type
+
+    def getCurrFunc(self):
+        scopeTmp = self.currentScope
+        while scopeTmp.parent != None:
+            try:
+                return self.currentScope.getNamedValue(scopeTmp.name[1])
+            except:
+                scopeTmp = scopeTmp.parent
+        raise ValueError("Error: no function in scope!")
+    def getFuncReturnLabel(self):
+        return self.getCurrFunc().retLabel
+
+    def setFuncReturnLabel(self, returnName):
+        #not sure if this would work... I think it will because, iirc, python variables are all pointers which are passeds by value
+        self.getCurrFunc().retLabel = returnName
+
+    def currHasReturnLabel(self):
+        return self.currentScope.retLabel != None
+
+    #sets it to the same return as the function
+    def setCurrReturnLabel(self):
+        self.currentScope.retLabel = self.getCurrFunc().retLabel
+
+    def setReturnValue(self, value):
+        self.getCurrFunc().retValue = value
+
+    def getReturnValue(self):
+        return self.getCurrFunc().retValue
+
     def getName(self):
         name = self.outFile+ "_"+hex(self.names)
         self.names +=1
@@ -149,16 +189,6 @@ class Emmiter:
             i = 0
         newScope = self.Scope((self.outFile, name), self.currentScope, isFunction, self.currentScope.indent + i)
         self.currentScope = newScope
-
-    def getCurrFuncType(self):
-        scopeTmp = self.currentScope
-        while scopeTmp.parent != None:
-            try:
-                return self.currentScope.getNamedValue(scopeTmp.name[1]).type
-            except:
-                scopeTmp = scopeTmp.parent
-        raise ValueError("Error: no function in scope!")
-
 
     def scopeDown(self):
         self.currentScope = self.currentScope.parent
