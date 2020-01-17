@@ -129,6 +129,12 @@ class If(Statement):
         self.elsebody = elsebody
     def __repr__(self):
         return f"if({self.condition}) {self.thenbody} else {self.elsebody} "
+class While(Statement):
+    def __init__(self, condition, body):
+        self.condition = condition
+        self.body = body
+    def __repr__(self):
+        return f"while ({self.condition}) {self.body}"
 class For(Statement):
     def __init__(self, ident, type, cond, inc, body):
         self.id = ident

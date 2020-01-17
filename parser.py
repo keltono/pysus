@@ -229,6 +229,11 @@ class Parser:
             self.pop()
             returning = self.expr()
             return ast.Return(returning)
+        elif self.match('while'):
+            line = self.pop().line
+            condition = self.expr()
+            body = self.statementlist("while body",line)
+            return ast.While(condition,body)
         elif self.match('ident') and self.tl[1].val == '=':
             name = self.pop().val
             self.pop()

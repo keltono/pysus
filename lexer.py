@@ -12,7 +12,7 @@ class Lex:
         self.in_str = self.in_str[1:] #returns the cdr of a seq
 
     def add(self, ty, val=None):
-        if(val):
+        if(val != None):
             self.token_list.append(Token(ty,val,self.lineno))
         else:
             self.token_list.append(Token(ty,line=self.lineno))
@@ -124,6 +124,8 @@ class Lex:
             self.add('return')
         elif buff == 'extern':
             self.add('extern')
+        elif buff == 'while':
+            self.add('while')
         elif buff == 'if':
             self.add('if')
         elif buff == 'else':

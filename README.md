@@ -7,8 +7,10 @@ Hopefully it will fall into some niche overlap between rust, C++, and maybe OCam
 
 #### A quick list of things to implement (in order of intent to implement)
 
-* external function declaration
 * while loops ("for"s will come later, in theory will be pythonic, e.g. "for x in y")
+* imports
 * pointers (referencing and dereferencing)
+* arrays
+* strings
 
 
