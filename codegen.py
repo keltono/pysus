@@ -78,7 +78,9 @@ class Codegen:
     def codegenStatementList(self, l):
         if l != None:
             for statement in l:
-                self.codegenStatement(statement)
+                s = self.codegenStatement(statement)
+                if s:
+                    break
     #doesn't return anything, unlike the codegenExpr
     def codegenStatement(self, s):
         ty = type(s)
@@ -191,7 +193,7 @@ class Codegen:
             if self.e.currHasReturnLabel:
                 self.e.emmit(f"br label %{self.e.getFuncReturnLabel()}")
                 if ifReturns:
-                    return
+                    return True
             else:
                 self.e.emmit(f"br label %{doneName}")
             self.e.emmitLabel(doneName)
