@@ -259,6 +259,26 @@ class Codegen:
             self.e.emmit(f"{llName} = call {func.type[1]} {func.val}({argStr})")
             return Value(llName, func.type[1], "unnamed", False)
 
+        elif t == ast.Unary:
+            operand = self.codegenExpr(ex.operand)
+            unaryName = "%"+self.e.getName()
+            if ex.op == "-":
+                if operand.type == "double" or operand.type == "float":
+                    self.e.emmit(f"{unaryName} = fsub {operand.type} 0.0, {operand.val}")
+                elif operand.type[0] == "i":
+                    self.e.emmit(f"{unaryName} = sub {operand.type} 0, {operand.val}")
+                else:
+                    raise ValueError(f"invalid type {ex.type} for - unary operator in {ex}")
+                return Value(unaryName, ex.type, "unnamed", False)
+            elif ex.op == "!":
+                if operand.type == "double" or operand.type == "float":
+                    self.e.emmit(f"{unaryName} = fcmp oeq {operand.type} 0.0, {operand.val}")
+                elif operand.type[0] == "i":
+                    self.e.emmit(f"{unaryName} = icmp eq {operand.type} 0, {operand.val}")
+                else:
+                    raise ValueError(f"invalid type {operand.type} for ! unary operator in {ex}")
+                return Value(unaryName, "i1", "unnamed", False)
+
         elif t == ast.Binary:
             #left recursion is fine here because eventually lhs won't be an binary expression
             lhs = self.codegenExpr(ex.lhs)
