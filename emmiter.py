@@ -1,6 +1,10 @@
 from value import Value
 #Note: this file has a lot of comments. this is partially good for understanding, but it's kind of rambly. I used the comments to replace my whiteboard a good chunk of the time.
 #handles llvm contexts, states, scopes, oh my!
+#oh my god
+#emit only has 1 m
+#my life is a lie
+#I will fix this... later
 class Emmiter:
         #class that manages handling of scope. general idea is that it functions as a wrapper around a dictionary for the most part,
         #unless it cannot find a symbol in the dictionary, in which case it goes to a "higher level scope" (e.g the global scope if the current scope is a function scope)
@@ -46,8 +50,8 @@ class Emmiter:
                 c+=1
 
         #these do as it says on the tin, as described above
-        def addNamedValue(self,name,llvar,lltype,category, isLit=False):
-            self.namedValues[name] = Value(llvar,lltype,category, isLit)
+        def addNamedValue(self,name,llvar,lltype,category, type, isLit=False):
+            self.namedValues[name] = Value(llvar,lltype,category, type, isLit)
         def getNamedValue(self,name):
             try:
                 return self.namedValues[name]
@@ -96,12 +100,12 @@ class Emmiter:
 
     #adds a variable to the current scope. in theory, the llname will be provided by the previous step in codegen.
     #also adds it to the "llVar" list
-    def addVariable(self,name, llname, lltype, category, isLit=False):
-        self.currentScope.addNamedValue(name, llname, lltype, category, isLit)
+    def addVariable(self,name, llname, lltype, category, type, isLit=False):
+        self.currentScope.addNamedValue(name, llname, lltype, category, type, isLit)
         if not isLit:
             self.llVars[llname] = lltype
-    def addGlobal(self, name, llname, lltype, category, isLit=False):
-        self.globalScope.addNamedValue(name, llname, lltype, category, isLit)
+    def addGlobal(self, name, llname, lltype, category, type, isLit=False):
+        self.globalScope.addNamedValue(name, llname, lltype, category, type, isLit)
         if not isLit:
             self.llVars[llname] = lltype
 
@@ -118,8 +122,8 @@ class Emmiter:
         except KeyError:
             raise KeyError(f"Uknown variable or function {var}")
 
-    def getCurrFuncType(self):
-        return self.getCurrFunc().type
+    def getCurrFuncLLType(self):
+        return self.getCurrFunc().lltype
 
     def getCurrFunc(self):
         scopeTmp = self.currentScope

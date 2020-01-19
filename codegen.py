@@ -42,13 +42,13 @@ class Codegen:
         if d.args != []:
             llname = "%"+self.e.getName()
             lltype = self.e.typeToLLType(d.args[0][0])
-            self.e.addVariable(d.args[0][1], llname, lltype, "arg")
+            self.e.addVariable(d.args[0][1], llname, lltype, "arg", args[0][0])
             defline +=f"{lltype} {llname}"
             d.args = d.args[1:]
             for arg in d.args:
                 llname = "%"+self.e.getName()
                 lltype = self.e.typeToLLType(arg[0])
-                self.e.addVariable(arg[1], llname, lltype)
+                self.e.addVariable(arg[1], llname, lltype, "arg", arg[0])
                 defline +=f", {lltype} {llname}"
         defline +=") {"
         self.e.emmit(defline)
@@ -66,6 +66,7 @@ class Codegen:
 
         self.codegenStatementList(d.body)
         if returnType != "void":
+            self.e.emmit(f"br label %{returnLabel}")
             self.e.emmitLabel(returnLabel)
             retLoadName = "%"+self.e.getName()
             self.e.emmit(f"{retLoadName} = load {returnType}, {returnType}* {returnValue}")
@@ -78,7 +79,7 @@ class Codegen:
         if l != None:
             for statement in l:
                 s = self.codegenStatement(statement)
-                if s:
+                if s == 'break':
                     break
     #doesn't return anything, unlike the codegenExpr
     def codegenStatement(self, s):
@@ -119,8 +120,9 @@ class Codegen:
 
     def codegenVar(self,s):
         expr = self.codegenExpr(s.val)
-        if s.type == None:
-            ty = expr.type
+        if s.type == (None,None):
+            ty = expr.lltype
+            s.type = expr.type
         else:
             varLLType = self.e.typeToLLType(s.type)
             if self.canConvert(expr, varLLType):
@@ -130,31 +132,31 @@ class Codegen:
         varName = "%"+self.e.getName()
         self.e.emmit(f"{varName} = alloca {ty}")
         self.e.emmit(f"store {ty} {expr.val}, {ty}* {varName}")
-        self.e.addVariable(s.name, varName, ty+"*", "var", expr.isLit)
+        self.e.addVariable(s.name, varName, ty+"*", "var",s.type, expr.isLit)
 
     def codegenAssign(self,s):
-        rhs = self.codegenExpr(s.rhs)
         lhs = self.e.getLLVariable(s.lhs)
+        rhs = self.codegenExpr(s.rhs)
         if lhs.category != "var":
             raise ValueError(f"can't re-assign non-var variables. {s}")
         if rhs.isLit:
-            if (rhs.type =="i32" or rhs.type == "i1") and lhs.type[0] == "i":
-                rhs.type = lhs.type[:-1]
-            elif rhs.type == "double" and lhs.type == "float*":
-                rhs.type = "float"
-        if lhs.type != rhs.type +"*":
-            raise ValueError(f"type mismatch in assignment {s} lhs: {lhs.type} rhs: {rhs.type}")
-        self.e.emmit(f"store {rhs.type} {rhs.val}, {lhs.type} {lhs.val}")
+            if (rhs.lltype =="i32" or rhs.lltype == "i1") and lhs.lltype[0] == "i":
+                rhs.lltype = lhs.lltype[:-1]
+            elif rhs.lltype == "double" and lhs.lltype == "float*":
+                rhs.lltype = "float"
+        if lhs.lltype != rhs.lltype +"*":
+            raise ValueError(f"type mismatch in assignment {s} lhs: {lhs.lltype} rhs: {rhs.lltype}")
+        self.e.emmit(f"store {rhs.lltype} {rhs.val}, {lhs.lltype} {lhs.val}")
 
     #doesn't actually generate any code past the code needed to evaluate the expression,
     #just adds it to the scope so that that value goes in wherever the variable is mentioned
     def codegenLet(self, s):
             #I *could* make it so you can't re-let variables, but where's the fun in that?
             expr = self.codegenExpr(s.val)
-            if expr.type[-1] == "*" or expr.category == "var":
+            if expr.type[0] == "pointer" or expr.category == "var":
                 raise ValueError(f"you can't use a let declaration on a pointer dummy! {s}")
-            if s.type == None:
-                ty = expr.type
+            if s.lltype == None:
+                ty = expr.lltype
             else:
                 letLLType = self.e.typeToLLType(s.type)
                 if self.canConvert(expr,letLLType):
@@ -162,37 +164,37 @@ class Codegen:
                 else:
                     #probably shouldn't emmit SSA values in error reporting...
                     raise ValueError(f"Expected a {letLLType} in let delcaration in {self.e.currentScope.name[1]}, saw {expr}")
-            self.e.addVariable(s.name, expr.val, ty, "let", expr.isLit)
+            self.e.addVariable(s.name, expr.val, ty, "let", expr.type, expr.isLit)
 
     def codegenReturn(self, s):
             expr = self.codegenExpr(s.returning)
 
-            funcReturnType = self.e.getCurrFuncType()[1]
+            funcLLReturnType = self.e.getCurrFuncLLType()[1]
             returnValue = self.e.getReturnValue()
 
             #TODO returns in void functions jumping to the end
-            if funcReturnType == "void":
+            if funcLLReturnType == "void":
                 raise ValueError(f"return statement in function with 'void' return type {s} in function {self.e.getCurrFunc()}")
             if returnValue == None:
                 raise ValueError(f"no returnValue in function {self.e.getCurrFunc()} for return statement {s}")
 
             self.e.setCurrReturnLabel()
 
-            if self.canConvert(expr, funcReturnType):
-                self.e.emmit(f"store {funcReturnType} {expr.val}, {funcReturnType}* {returnValue}")
+            if self.canConvert(expr, funcLLReturnType):
+                self.e.emmit(f"store {funcLLReturnType} {expr.val}, {funcLLReturnType}* {returnValue}")
             else:
-                raise ValueError(f"return type mismatch in function {self.e.currentScope.name}: expected a(n) {funcReturnType}, saw {expr}")
+                raise ValueError(f"return type mismatch in function {self.e.currentScope.name}: expected a(n) {funcLLReturnType}, saw {expr}")
 
     def codegenIf(self, s):
         cond = self.codegenExpr(s.condition)
-        if(cond.type[0] != "i"):
+        if(cond.lltype[0] != "i"):
             raise ValueError(f"expected boolean or integer in condition in if statement {s}, saw {cond}")
 
         #TODO: might need to do some work here to allow pointers and such
         cmpName = "%"+self.e.getName()
         thenName = self.e.getName()+"_then"
         failName = self.e.getName()+"_iffail"
-        self.e.emmit(f"{cmpName} = icmp ne {cond.type} {cond.val}, 0")
+        self.e.emmit(f"{cmpName} = icmp ne {cond.lltype} {cond.val}, 0")
         self.e.emmit(f"br i1 {cmpName}, label %{thenName}, label %{failName}")
         self.e.emmitLabel(thenName)
 
@@ -222,19 +224,19 @@ class Codegen:
         if self.e.currHasReturnLabel():
             self.e.emmit(f"br label %{self.e.getFuncReturnLabel()}")
             if ifReturns:
-                return True
+                return 'break'
         else:
             self.e.emmit(f"br label %{doneName}")
         self.e.emmitLabel(doneName)
         self.e.scopeDown()
     def codegenWhile(self, s):
         cond = self.codegenExpr(s.condition)
-        if(cond.type[0] != "i"):
+        if(cond.lltype[0] != "i"):
             raise ValueError(f"expected boolean or integer in condition in if statement {s}, saw {cond}")
         cmpName = "%"+self.e.getName()
         thenName = self.e.getName()+"_whileBody"
         failName = self.e.getName()+"_whileFail"
-        self.e.emmit(f"{cmpName} = icmp ne {cond.type} {cond.val}, 0")
+        self.e.emmit(f"{cmpName} = icmp ne {cond.lltype} {cond.val}, 0")
         self.e.emmit(f"br i1 {cmpName}, label %{thenName}, label %{failName}")
         self.e.emmitLabel(thenName)
 
@@ -249,7 +251,7 @@ class Codegen:
             self.e.emmit(f"br label %{self.e.getFuncReturnLabel()}")
         else:
             insideCond = self.codegenExpr(s.condition)
-            self.e.emmit(f"{cmpName}_inside = icmp ne {insideCond.type} {insideCond.val}, 0")
+            self.e.emmit(f"{cmpName}_inside = icmp ne {insideCond.lltype} {insideCond.val}, 0")
             self.e.emmit(f"br i1 {cmpName}_inside, label %{thenName}, label %{failName}")
         self.e.emmitLabel(failName)
         self.e.scopeDown()
@@ -265,29 +267,29 @@ class Codegen:
         argStr = ""
         for index, arg in enumerate(argExprs):
             #func.type[0] is the arg types
-            if arg.type != func.type[0][index]:
+            if arg.lltype != func.lltype[0][index]:
                 if arg.isLit:
-                    if not canConvert(arg,func.type[0][index]):
-                        raise ValueError(f"type mismatch between argument {index + 1} {arg} and function {func} in call {s}: expected {func.type[0][index]}, saw {arg.type}")
+                    if not canConvert(arg,func.lltype[0][index]):
+                        raise ValueError(f"type mismatch between argument {index + 1} {arg} and function {func} in call {s}: expected {func.lltype[0][index]}, saw {arg.lltype}")
                 else:
-                    raise ValueError(f"type mismatch between argument {index + 1} {arg} and function {func} in call {s}: expected {func.type[0][index]}, saw {arg.type}")
+                    raise ValueError(f"type mismatch between argument {index + 1} {arg} and function {func} in call {s}: expected {func.lltype[0][index]}, saw {arg.lltype}")
             if index == 0:
-                argStr+= f"{arg.type} {arg.val}"
+                argStr+= f"{arg.lltype} {arg.val}"
             else:
-                argStr+= f",{arg.type} {arg.val}"
+                argStr+= f",{arg.lltype} {arg.val}"
 
         llName = "%"+self.e.getName()
-        self.e.emmit(f"{llName} = call {func.type[1]} {func.val}({argStr})")
-        return Value(llName, func.type[1], "unnamed", False)
+        self.e.emmit(f"{llName} = call {func.lltype[1]} {func.val}({argStr})")
+        return Value(llName, func.lltype[1], "unnamed", False)
     def codegenBinary(self, ex):
         #left recursion is fine here because eventually lhs won't be an binary expression
         lhs = self.codegenExpr(ex.lhs)
         rhs = self.codegenExpr(ex.rhs)
 
-        if self.canConvert(lhs,rhs.type):
-            ty = rhs.type
-        elif self.canConvert(rhs, lhs.type):
-            ty = lhs.type
+        if self.canConvert(lhs,rhs.lltype):
+            ty = rhs.lltype
+        elif self.canConvert(rhs, lhs.lltype):
+            ty = lhs.lltype
         else:
             raise ValueError(f"type mismatch between {lhs} and {rhs} in {ex}")
 
@@ -299,7 +301,7 @@ class Codegen:
                 self.e.emmit(f"{name} = add {ty} {lhs.val}, {rhs.val}")
             else:
                 raise ValueError(f"Error: Type {ty} incompatable with + in {ex}")
-            return Value(name, ty,"unnamed")
+            return Value(name, ty, "unnamed", lhs.type)
         elif ex.op == "-":
             if ty == "float" or ty == "double":
                 self.e.emmit(f"{name} = fsub {ty} {lhs.val}, {rhs.val}")
@@ -307,7 +309,7 @@ class Codegen:
                 self.e.emmit(f"{name} = sub {ty} {lhs.val}, {rhs.val}")
             else:
                 raise ValueError(f"Error: Type {ty} incompatable with - in {ex}")
-            return Value(name, ty,"unnamed")
+            return Value(name, ty, "unnamed",lhs.type)
         elif ex.op == "*":
             if ty == "float" or ty == "double":
                 self.e.emmit(f"{name} = fmul {ty} {lhs.val}, {rhs.val}")
@@ -315,7 +317,7 @@ class Codegen:
                 self.e.emmit(f"{name} = mul {ty} {lhs.val}, {rhs.val}")
             else:
                 raise ValueError(f"Error: Type {ty} incompatable with * in {ex}")
-            return Value(name, ty,"unnamed")
+            return Value(name, ty, "unnamed",lhs.type)
         #no unsigned types for the time being
         elif ex.op == "/":
             if ty == "float" or ty == "double":
@@ -324,7 +326,7 @@ class Codegen:
                 self.e.emmit(f"{name} = sdiv {ty} {lhs.val}, {rhs.val}")
             else:
                 raise ValueError(f"Error: Type {ty} incompatable with / in {ex}")
-            return Value(name, ty,"unnamed")
+            return Value(name, ty, "unnamed",lhs.type)
         elif ex.op == "%":
             if ty == "float" or ty == "double":
                 self.e.emmit(f"{name} = frem {ty} {lhs.val}, {rhs.val}")
@@ -332,7 +334,7 @@ class Codegen:
                 self.e.emmit(f"{name} = srem {ty} {lhs.val}, {rhs.val}")
             else:
                 raise ValueError(f"Error: Type {ty} incompatable with % in {ex}")
-            return Value(name, ty,"unnamed")
+            return Value(name, ty, "unnamed",lhs.type)
         elif ex.op == "==":
             if ty == "float" or ty == "double":
                 self.e.emmit(f"{name} = fcmp oeq {ty} {lhs.val}, {rhs.val}")
@@ -340,7 +342,7 @@ class Codegen:
                 self.e.emmit(f"{name} = icmp eq {ty} {lhs.val}, {rhs.val}")
             else:
                 raise ValueError(f"Error: Type {ty} incompatable with == in {ex}")
-            return Value(name,"i1", "unnamed")
+            return Value(name,"i1","unnamed",("bool",None))
         elif ex.op == "!=":
             if ty == "float" or ty == "double":
                 self.e.emmit(f"{name} = fcmp one {ty} {lhs.val}, {rhs.val}")
@@ -348,7 +350,7 @@ class Codegen:
                 self.e.emmit(f"{name} = icmp ne {ty} {lhs.val}, {rhs.val}")
             else:
                 raise ValueError(f"Error: Type {ty} incompatable with == in {ex}")
-            return Value(name,"i1", "unnamed")
+            return Value(name,"i1","unnamed",("bool",None))
         elif ex.op == "<":
             if ty == "float" or ty == "double":
                 self.e.emmit(f"{name} = fcmp olt {ty} {lhs.val}, {rhs.val}")
@@ -356,7 +358,7 @@ class Codegen:
                 self.e.emmit(f"{name} = icmp slt {ty} {lhs.val}, {rhs.val}")
             else:
                 raise ValueError(f"Error: Type {ty} incompatable with < in {ex}")
-            return Value(name,"i1", "unnamed")
+            return Value(name,"i1","unnamed",("bool",None))
         elif ex.op == "<=":
             if ty == "float" or ty == "double":
                 self.e.emmit(f"{name} = fcmp ole {ty} {lhs.val}, {rhs.val}")
@@ -364,7 +366,7 @@ class Codegen:
                 self.e.emmit(f"{name} = icmp sle {ty} {lhs.val}, {rhs.val}")
             else:
                 raise ValueError(f"Error: Type {ty} incompatable with <= in {ex}")
-            return Value(name,"i1", "unnamed")
+            return Value(name,"i1","unnamed",("bool",None))
         elif ex.op == ">":
             if ty == "float" or ty == "double":
                 self.e.emmit(f"{name} = fcmp ogt {ty} {lhs.val}, {rhs.val}")
@@ -372,7 +374,7 @@ class Codegen:
                 self.e.emmit(f"{name} = icmp sgt {ty} {lhs.val}, {rhs.val}")
             else:
                 raise ValueError(f"Error: Type {ty} incompatable with > in {ex}")
-            return Value(name,"i1", "unnamed")
+            return Value(name,"i1","unnamed",("bool",None))
         elif ex.op == ">=":
             if ty == "float" or ty == "double":
                 self.e.emmit(f"{name} = fcmp oge {ty} {lhs.val}, {rhs.val}")
@@ -380,7 +382,7 @@ class Codegen:
                 self.e.emmit(f"{name} = icmp sge {ty} {lhs.val}, {rhs.val}")
             else:
                 raise ValueError(f"Error: Type {ty} incompatable with >= in {ex}")
-            return Value(name,"i1", "unnamed")
+            return Value(name,"i1","unnamed",("bool",None))
 
         else:
             raise ValueError(f"unrecognized operation {ex.op} in {ex}")
@@ -388,60 +390,88 @@ class Codegen:
     def codegenLiteral(self, ex):
         #TODO string and char literals
         if ex.val == True and type(ex.val) == bool:
-            return Value("1","i1","unnamed",True)
+            return Value("1","i1","unnamed",("bool",None),True)
         elif ex.val == False and type(ex.val) == bool:
-            return Value("0","i1","unnamed",True)
+            return Value("0","i1","unnamed", ("bool", None), True)
         elif type(ex.val) == float:
-            return Value(str(ex.val),"double", "unnamed", True)
+            return Value(str(ex.val),"double", "unnamed", ("double",None), True)
         elif type(ex.val) == int:
-            return Value(str(ex.val), "i32", "unnamed", True)
+            return Value(str(ex.val), "i32", "unnamed", ("int",None), True)
         else:
             raise ValueError(f"what the heck is this? I expected a literal of *some kind* but i saw {ex.val} in {ex}")
 
     def codegenVariable(self,ex):
         var = self.e.getLLVariable(ex.name)
-        if var.category == "let" or "arg":
+        if var.category == "let" or var.category == "arg":
             return var
         elif var.category == "var":
             loadName = "%"+self.e.getName()
             #take off a pointer level
-            loadType = var.type[:-1]
-            self.e.emmit(f"{loadName} = load {loadType}, {var.type} {var.val}")
+            loadType = var.lltype[:-1]
+            self.e.emmit(f"{loadName} = load {loadType}, {var.lltype} {var.val}")
             #TODO see if calling both the var pointer and the var result "var" causes issues
-            return Value(loadName, loadType, "var", False)
+            return Value(loadName, loadType, "var", var.type,False)
         else:
             raise ValueError(f"uknown category {var.category}")
 
     def codegenUnary(self, ex):
-        operand = self.codegenExpr(ex.operand)
         unaryName = "%"+self.e.getName()
-        if ex.op == "-":
-            if operand.type == "double" or operand.type == "float":
-                self.e.emmit(f"{unaryName} = fsub {operand.type} 0.0, {operand.val}")
-            elif operand.type[0] == "i":
-                self.e.emmit(f"{unaryName} = sub {operand.type} 0, {operand.val}")
-            else:
-                raise ValueError(f"invalid type {ex.type} for - unary operator in {ex}")
-            return Value(unaryName, ex.type, "unnamed", False)
-        elif ex.op == "!":
-            if operand.type == "double" or operand.type == "float":
-                self.e.emmit(f"{unaryName} = fcmp oeq {operand.type} 0.0, {operand.val}")
-            elif operand.type[0] == "i":
-                self.e.emmit(f"{unaryName} = icmp eq {operand.type} 0, {operand.val}")
-            else:
-                raise ValueError(f"invalid type {operand.type} for ! unary operator in {ex}")
-            return Value(unaryName, "i1", "unnamed", False)
+        if ex.op == '-' or ex.op == '!' or ex.op =='*':
+            operand = self.codegenExpr(ex.operand)
+
+            if ex.op == "-":
+                if operand.lltype == "double" or operand.lltype == "float":
+                    self.e.emmit(f"{unaryName} = fsub {operand.lltype} 0.0, {operand.val}")
+                elif operand.lltype[0] == "i":
+                    self.e.emmit(f"{unaryName} = sub {operand.lltype} 0, {operand.val}")
+                else:
+                    raise ValueError(f"invalid type {ex.lltype} for - unary operator in {ex}")
+                return Value(unaryName, operand.lltype,"unnamed",operand.type, False)
+            elif ex.op == "!":
+                if operand.lltype == "double" or operand.lltype == "float":
+                    self.e.emmit(f"{unaryName} = fcmp oeq {operand.lltype} 0.0, {operand.val}")
+                elif operand.lltype[0] == "i":
+                    self.e.emmit(f"{unaryName} = icmp eq {operand.lltype} 0, {operand.val}")
+                else:
+                    raise ValueError(f"invalid type {operand.lltype} for ! unary operator in {ex}")
+                return Value(unaryName, "i1", "unnamed",operand.type, False)
+            elif ex.op == "*":
+                if operand.type[0] != "pointer":
+                    raise ValueError(f"no dereferencing non-pointer types in {ex}")
+                #no referencing things that aren't properly pointers.
+                loadType = operand.lltype[:-1]
+                self.e.emmit(f"{unaryName} = load {loadType}, {operand.lltype} {operand.val}")
+                return Value(unaryName, loadType, operand.category, operand.type[1], False)
+
+        #NOTE this uses an alloca without fail. I'm 99% sure with is fine, but may cause issues using malloc.
+        if ex.op == '&':
+            #only works on named values, unlike deref
+            #TODO it should probably be able to work on a unary of a deref (if not a unary of a ref)
+            operand = self.e.getLLVariable(ex.operand.name)
+            if operand.lltype [-1] != "*":
+                raise ValueError(f"no referencing unnamed values in {ex}")
+            #this idea of just returning what they are in memory to things that aren't pointer might have to change given arrays
+            #so, normally, when a variable is referenced, it does a load.
+            #the idea here, is that if the operand isn't a pointer, just don't do that, and it is effectivly a pointer level up
+            #this works in all cases where the thing expected is the load value.
+            #if something is expecting the additional pointer, then that needs to be taken into account
+            if operand.type[0] != "pointer":
+                return Value(operand.val, operand.lltype, operand.category, ("pointer", operand.type), False)
+
+            refType = operand.lltype+'*'
+            self.e.emmit(f"{unaryName} = alloca {operand.lltype}")
+            self.e.emmit(f"store {operand.lltype} {operand.val}, {refType} {unaryName}")
 
     #TODO: expand from base types (pointers,arrays)
     #takes in a value, and then returns if that value can be converted to the given type without a cast
     def canConvert(self,value,typeTo):
         if value.isLit:
-            if value.type[0] == 'i':
+            if value.lltype[0] == 'i':
                 return typeTo[0] == 'i'
-            elif value.type == "double":
+            elif value.lltype == "double":
                 return typeTo == "float" or typeTo == "double"
         #in theory
         else:
-            return value.type == typeTo
+            return value.lltype == typeTo
     def close(self):
         self.e.close()

@@ -122,10 +122,7 @@ class Parser:
     #this one starts with "parse_" because def is a reserved word in python. does *not* expect the def keyword
     def parse_def(self):
         #TODO: real type parsing (to handle pointers, arrays)
-        if self.match('type'):
-            ty = self.pop().val
-        else:
-            raise ValueError(f'expected function return type in function definition on line {self.tl[0].line}')
+        ty = self.type()
         if self.match('ident'):
             name = self.pop()
         else:
@@ -138,7 +135,7 @@ class Parser:
             arg_types.append(arg[0])
 
         #TODO properly format type (in the case of pointers/arrays)
-        return ast.Def(name.val, ("function",(arg_types,(ty,None))), args, body)
+        return ast.Def(name.val, ("function",(arg_types,ty)), args, body)
 
     #expects and consumes curly braces (e.g {<stmntlist>} )
     def statementlist(self,parent, line):
@@ -163,26 +160,17 @@ class Parser:
     def statement(self):
         if self.match("let"):
             line = self.pop().line
-            #TODO add proper type parsing (pointers, arrays, custom types, etc)
-            if self.match("type"):
-                ty = self.pop().val
-                if self.match("ident"):
-                    name = self.pop().val
-                else:
-                    raise ValueError(f"expected name in let declaration on line {line}, saw {self.tl[0].val}")
-            elif self.match("ident"):
-                ty= self.pop().val
-                #type inference
-                if self.match_val("="):
-                    name = ty
-                    ty = None
+
+            ty = self.type()
+            if self.match_val("="):
+                name = ty[1]
+                ty = (None,None)
                 #this is where more complete type parsing would happen
                 #for the time being, just error out
-                else:
-                    raise ValueError(f"expected type in let declaration on line {line}, saw {self.tl[0].val}")
-
+            elif self.match("ident"):
+                name = self.pop().val
             else:
-                raise ValueError(f"expected type in let declaration on line {line}, saw {self.tl[0].val}")
+                raise ValueError(f"expected type in var declaration on line {line}, saw {self.tl[0].val}")
             self.consume("=", f"expected '=' in let declaration on line {line}, saw {self.tl[0].val}")
             ex = self.expr()
             if ty != None:
@@ -193,28 +181,20 @@ class Parser:
         elif self.match("var"):
             line = self.pop().line
             #TODO add proper type parsing (pointers, arrays, custom types, etc)
-            if self.match("type"):
-                ty = self.pop().val
-                if self.match("ident"):
-                    name = self.pop().val
-                else:
-                    raise ValueError(f"expected name in let declaration on line {line}, saw {self.tl[0].val}")
-            elif self.match("ident"):
-                ty= self.pop().val
-                #type inference
-                if self.match_val("="):
-                    name = ty
-                    ty = None
+            ty = self.type()
+            if self.match_val("="):
+                name = ty[0]
+                ty = (None,None)
                 #this is where more complete type parsing would happen
                 #for the time being, just error out
-                else:
-                    raise ValueError(f"expected type in let declaration on line {line}, saw {self.tl[0].val}")
-
+            elif self.match("ident"):
+                name = self.pop().val
             else:
-                raise ValueError(f"expected type in let declaration on line {line}, saw {self.tl[0].val}")
+                raise ValueError(f"expected type in var declaration on line {line}, saw {self.tl[0].val}")
+
             self.consume("=", f"expected '=' in var declaration on line {line}, saw {self.tl[0].val}")
             ex = self.expr()
-            return ast.Var(name,(ty,None),ex)
+            return ast.Var(name,ty,ex)
         elif self.match("if"):
             line = self.pop().line
             ex = self.expr()
@@ -277,7 +257,7 @@ class Parser:
         return expr
 
     def unary(self):
-        if(self.match_val('-','!')):
+        if(self.match_val('-','!','*','&')):
             op = self.pop().val
             return ast.Unary(op, self.unary())
         return self.primary()
@@ -310,7 +290,6 @@ class Parser:
         else:
             tok = self.pop()
             raise ValueError(f"invalid token '{tok.val}' in expr on line {tok.line}")
-    #TODO args, parse_def
 
     #not sure how to differentiate between '('<expr>')' and a tuple in parsing...
     #I guess you just have to iterate over all of the tokens between the parens and see if there's a comma.
@@ -340,12 +319,10 @@ class Parser:
         else:
             self.pop()
         while(not self.match_val(')')):
-            if self.match('type'):
-                ty = self.pop()
-            else:
-                raise ValueError(f"expected type in {name} function definition, saw {self.tl[0].val} on line {self.tl[0].line}")
+            ty = self.type()
+
             if self.match('ident'):
-                arg_list.append(((ty.val,None),self.pop().val))
+                arg_list.append(ty,self.pop().val)
             else:
                 raise ValueError(f"expected arg name in {name} function definition, saw {self.tl[0].val} on line {self.tl[0].line}")
             if(self.match_val(',')):
@@ -356,6 +333,18 @@ class Parser:
             raise ValueError(f'invalid token in function definition {name} on line {self.tl[0].line}')
         self.pop()
         return arg_list
+    def type(self):
+        #TODO impliment arrays here
+        if self.match_val('*'):
+            self.pop()
+            ty =  ('pointer', self.type())
+        elif self.match('ident') or self.match('type'):
+            #i don't think this will need to change when typedefs are added
+            t = self.pop().val
+            ty = (t, None)
+        else:
+            raise ValueError(f"unrecognized token {self.pop} in type parsing")
+        return ty
 
     def __str__(self):
         return (f"{self.ast_list}")
