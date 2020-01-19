@@ -64,7 +64,7 @@ class Emiter:
 
         #the name of the current file, used for scoping
         #kinda lazy and assumes ".ll" ending, but I don't really see a case where that should come up
-        self.outFile = outFile[:3]
+        self.outFile = outFile[:-3]
 
         #actual file object that is written to
         self.fd = open(outFile,"w+")
