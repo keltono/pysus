@@ -7,9 +7,9 @@ Hopefully it will fall into some niche overlap between rust, C++, and maybe OCam
 
 #### A quick list of things to implement (in order of intent to implement)
 
-* imports
-* pointers (referencing and dereferencing)
+* pointer arithmetic 
 * arrays
 * strings
+* imports
 
 

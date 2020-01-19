@@ -2,7 +2,6 @@
 #so far: let variables, literals, var variables, functions
 class Value:
     #where category is ("function","var","let", "unnamed"). can't think of a better name.
-    #type here is the llType
     def __init__(self, val, lltype, category, type,  isLit=False):
         self.type = type
         self.lltype = lltype

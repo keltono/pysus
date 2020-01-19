@@ -5,7 +5,7 @@ from value import Value
 #emit only has 1 m
 #my life is a lie
 #I will fix this... later
-class Emmiter:
+class Emiter:
         #class that manages handling of scope. general idea is that it functions as a wrapper around a dictionary for the most part,
         #unless it cannot find a symbol in the dictionary, in which case it goes to a "higher level scope" (e.g the global scope if the current scope is a function scope)
     class Scope:
@@ -34,7 +34,7 @@ class Emmiter:
 
             # self.isFunction = isFunction
 
-            #literally what it says on the tin. how many times it should indent when emmiting.
+            #literally what it says on the tin. how many times it should indent when emiting.
             self.indent = indent
 
             self.indentStr = ""
@@ -83,7 +83,7 @@ class Emmiter:
         self.currentScope = self.globalScope
 
 
-        self.emmit(f"; ModuleID = '{outFile}'\n")
+        self.emit(f"; ModuleID = '{outFile}'\n")
 
         #TODO: handle typedefs & structs. maybe move this to the scope later?
         self.baseTypes =  {
@@ -96,7 +96,7 @@ class Emmiter:
             "char" : "i8"
         }
 
-        #TODO emmit module name & other metadata
+        #TODO emit module name & other metadata
 
     #adds a variable to the current scope. in theory, the llname will be provided by the previous step in codegen.
     #also adds it to the "llVar" list
@@ -200,10 +200,10 @@ class Emmiter:
     def setIndent(self,ind):
         self.currentScope.updateIndent(ind)
 
-    def emmit(self, output):
+    def emit(self, output):
         self.fd.write(self.currentScope.indentStr+output+"\n")
 
-    def emmitLabel(self, label):
+    def emitLabel(self, label):
         self.fd.write(label+":\n")
 
     def close(self):
