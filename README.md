@@ -7,7 +7,7 @@ Hopefully it will fall into some niche overlap between rust, C++, and maybe OCam
 
 #### A quick list of things to implement (in order of intent to implement)
 
-* pointer arithmetic 
+* additional binary assignment operators (\*=, +=, -=, \=, %=)
 * arrays
 * strings
 * imports

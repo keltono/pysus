@@ -3,6 +3,9 @@
 #well, kind of. codegen.py handles a lot of what the llvm library handles, emiter.py really just handles the admin that comes with complex programs
 #the actual logic for deciding what line to write is here.
 #this could probably benefit from a sperate semantic analysis phase...
+#TODO currently, all acorss the file everything is aligned to 1. this may cause issues with trampolines, and definitelly is not effecient enough
+#I'm not really sure what it should be set to under x86-64 (or x86 for that matter) but, juding from clang, it's probably either 4 or 8 without fail.
+#not brave enough for that right now, and it should work for everything (except, again, possibly trampolines)
 
 import ast
 import emiter
@@ -68,7 +71,7 @@ class Codegen:
             self.e.emit(f"br label %{returnLabel}")
             self.e.emitLabel(returnLabel)
             retLoadName = "%"+self.e.getName()
-            self.e.emit(f"{retLoadName} = load {returnType}, {returnType}* {returnValue}")
+            self.e.emit(f"{retLoadName} = load {returnType}, {returnType}* {returnValue}, align 1")
             self.e.emit(f"ret {returnType} {retLoadName}")
         self.e.setIndent(-1)
         self.e.emit("}\n")
@@ -129,8 +132,9 @@ class Codegen:
             else:
                 raise ValueError(f"Expected a {letLLType} in var delcaration in {self.e.currentScope.name[1]}, saw {expr}")
         varName = "%"+self.e.getName()
-        self.e.emit(f"{varName} = alloca {ty}")
-        self.e.emit(f"store {ty} {expr.val}, {ty}* {varName}")
+        #TODO trampolines might require a spesific alignment (that isn't 1) idk.
+        self.e.emit(f"{varName} = alloca {ty}, align 1")
+        self.e.emit(f"store {ty} {expr.val}, {ty}* {varName}, align 1")
         self.e.addVariable(s.name, varName, ty+"*", "var",s.type, expr.isLit)
 
     def codegenAssign(self,s):
@@ -145,7 +149,7 @@ class Codegen:
                 rhs.lltype = "float"
         if lhs.lltype != rhs.lltype +"*":
             raise ValueError(f"type mismatch in assignment {s} lhs: {lhs.lltype} rhs: {rhs.lltype}")
-        self.e.emit(f"store {rhs.lltype} {rhs.val}, {lhs.lltype} {lhs.val}")
+        self.e.emit(f"store {rhs.lltype} {rhs.val}, {lhs.lltype} {lhs.val}, align 1")
 
     #doesn't actually generate any code past the code needed to evaluate the expression,
     #just adds it to the scope so that that value goes in wherever the variable is mentioned
@@ -180,7 +184,7 @@ class Codegen:
             self.e.setCurrReturnLabel()
 
             if self.canConvert(expr, funcLLReturnType):
-                self.e.emit(f"store {funcLLReturnType} {expr.val}, {funcLLReturnType}* {returnValue}")
+                self.e.emit(f"store {funcLLReturnType} {expr.val}, {funcLLReturnType}* {returnValue}, align 1")
             else:
                 raise ValueError(f"return type mismatch in function {self.e.currentScope.name}: expected a(n) {funcLLReturnType}, saw {expr}")
 
@@ -285,7 +289,14 @@ class Codegen:
         lhs = self.codegenExpr(ex.lhs)
         rhs = self.codegenExpr(ex.rhs)
 
-        if self.canConvert(lhs,rhs.lltype):
+        #ocasionally dynamic typing is nice
+
+        if lhs.type[0] == 'pointer' and rhs.type[0][0]=='i':
+            ty = lhs.lltype
+        elif rhs.type[0] == 'pointer' and lhs.type[0][0]=='i':
+            ty = rhs.lltype
+
+        elif self.canConvert(lhs,rhs.lltype):
             ty = rhs.lltype
         elif self.canConvert(rhs, lhs.lltype):
             ty = lhs.lltype
@@ -296,6 +307,17 @@ class Codegen:
         if ex.op == "+":
             if ty == "float" or ty == "double":
                 self.e.emit(f"{name} = fadd {ty} {lhs.val}, {rhs.val}")
+            elif ty[-1] == '*':
+                if rhs.type[0] == 'pointer':
+                    self.e.emit(f"{name} = getelementptr {ty[:-1]}, {ty} {rhs.val}, {lhs.lltype} {lhs.val}")
+                    return Value(name,ty, rhs.category, rhs.type)
+                elif lhs.type[0] == 'pointer':
+                    self.e.emit(f"{name} = getelementptr {ty[:-1]}, {ty} {lhs.val}, {rhs.lltype} {rhs.val}")
+                    return Value(name,ty, lhs.category, lhs.type)
+                else:
+                    raise ValueError(f"need a pointer to do pointer math, dummy, in {ex}")
+            elif rhs.type[0] == "pointer" or lhs.type[0] == "pointer":
+                raise ValueError(f" not sure how you have a pointer type without a * in the lltype {ty} in {ex}")
             elif ty[0] == "i":
                 self.e.emit(f"{name} = add {ty} {lhs.val}, {rhs.val}")
             else:
@@ -304,6 +326,21 @@ class Codegen:
         elif ex.op == "-":
             if ty == "float" or ty == "double":
                 self.e.emit(f"{name} = fsub {ty} {lhs.val}, {rhs.val}")
+            elif ty[-1] == '*':
+                subName = "%"+self.e.getName()
+                if rhs.type[0] == 'pointer':
+                    self.e.emit(f"{subName} = sub {lhs.lltype} 0, {lhs.val}")
+                    self.e.emit(f"{name} = getelementptr {ty[:-1]}, {ty} {rhs.val}, {lhs.lltype} {subName}")
+                    return Value(name,ty, rhs.category, rhs.type)
+                elif lhs.type[0] == 'pointer':
+                    self.e.emit(f"{subName} = sub {rhs.lltype} 0, {rhs.val}")
+                    self.e.emit(f"{name} = getelementptr {ty[:-1]}, {ty} {lhs.val}, {rhs.lltype} {subName}")
+                    return Value(name,ty, lhs.category, lhs.type)
+                else:
+                    raise ValueError(f"need a pointer to do pointer math, dummy, in {ex}")
+            elif rhs.type[0] == "pointer" or lhs.type[0] == "pointer":
+                raise ValueError(f" not sure how you have a pointer type without a * in the lltype {ty} in {ex}")
+
             elif ty[0] == "i":
                 self.e.emit(f"{name} = sub {ty} {lhs.val}, {rhs.val}")
             else:
@@ -407,7 +444,7 @@ class Codegen:
             loadName = "%"+self.e.getName()
             #take off a pointer level
             loadType = var.lltype[:-1]
-            self.e.emit(f"{loadName} = load {loadType}, {var.lltype} {var.val}")
+            self.e.emit(f"{loadName} = load {loadType}, {var.lltype} {var.val}, align 1")
             #TODO see if calling both the var pointer and the var result "var" causes issues
             return Value(loadName, loadType, "var", var.type,False)
         else:
@@ -438,7 +475,7 @@ class Codegen:
                 if operand.type[0] != "pointer":
                     raise ValueError(f"no dereferencing non-pointer types in {ex}")
                 loadType = operand.lltype[:-1]
-                self.e.emit(f"{unaryName} = load {loadType}, {operand.lltype} {operand.val}")
+                self.e.emit(f"{unaryName} = load {loadType}, {operand.lltype} {operand.val}, align 1")
                 return Value(unaryName, loadType, operand.category, operand.type[1], False)
 
         if ex.op == '&':
@@ -457,8 +494,8 @@ class Codegen:
                 return Value(operand.val, operand.lltype, operand.category, ("pointer", operand.type), False)
 
             refType = operand.lltype+'*'
-            self.e.emit(f"{unaryName} = alloca {operand.lltype}")
-            self.e.emit(f"store {operand.lltype} {operand.val}, {refType} {unaryName}")
+            self.e.emit(f"{unaryName} = alloca {operand.lltype}, align 1")
+            self.e.emit(f"store {operand.lltype} {operand.val}, {refType} {unaryName}, align 1")
 
     #TODO: expand from base types (pointers,arrays)
     #takes in a value, and then returns if that value can be converted to the given type without a cast

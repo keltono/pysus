@@ -1,10 +1,6 @@
 from value import Value
-#Note: this file has a lot of comments. this is partially good for understanding, but it's kind of rambly. I used the comments to replace my whiteboard a good chunk of the time.
+#Note: this file has a lot of comments. this is partially good for understanding, but it's kind of rambly.
 #handles llvm contexts, states, scopes, oh my!
-#oh my god
-#emit only has 1 m
-#my life is a lie
-#I will fix this... later
 class Emiter:
         #class that manages handling of scope. general idea is that it functions as a wrapper around a dictionary for the most part,
         #unless it cannot find a symbol in the dictionary, in which case it goes to a "higher level scope" (e.g the global scope if the current scope is a function scope)
