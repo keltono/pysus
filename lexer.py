@@ -39,25 +39,56 @@ class Lex:
                     elif self.in_str[0] == '*':
                         self.junk()
                         self.lex_multi_comment()
+                    elif self.in_str[0] == '=':
+                        self.junk()
+                        self.add('kwd','/=')
                     else:
                         self.add('kwd','/')
 
 
             elif ch == '+': #TODO add +=
                 self.junk()
-                self.add('kwd', '+') #all of these just add to the token list and don't return anything
+                if len(self.in_str) == 0:
+                    self.add('kwd', '+')
+                else:
+                    if self.in_str[0] == '=':
+                        self.junk()
+                        self.add('kwd', '+=')
+                    else:
+                        self.add('kwd', '+')
 
             elif ch == '-': #these only exist for the purpose of being extended later (e.g +=, *=). the current system would treat it this way by default
                 self.junk()
-                self.add('kwd', '-')
+                if len(self.in_str) == 0:
+                    self.add('kwd', '-')
+                else:
+                    if self.in_str[0] == '=':
+                        self.junk()
+                        self.add('kwd', '-=')
+                    else:
+                        self.add('kwd', '-')
 
             elif ch == '*':
                 self.junk()
-                self.add('kwd', '*')
+                if len(self.in_str) == 0:
+                    self.add('kwd', '*')
+                else:
+                    if self.in_str[0] == '=':
+                        self.junk()
+                        self.add('kwd', '*=')
+                    else:
+                        self.add('kwd', '*')
 
             elif ch == '%':
                 self.junk()
-                self.add('kwd', '%')
+                if len(self.in_str) == 0:
+                    self.add('kwd', '%')
+                else:
+                    if self.in_str[0] == '=':
+                        self.junk()
+                        self.add('kwd', '%=')
+                    else:
+                        self.add('kwd', '%')
 
             elif ch == '<':
                 self.junk()

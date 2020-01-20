@@ -214,10 +214,13 @@ class Parser:
             condition = self.expr()
             body = self.statementlist("while body",line)
             return ast.While(condition,body)
-        elif self.match('ident') and self.tl[1].val == '=':
+        elif self.match('ident') and (self.tl[1].val == '=' or self.tl[1].val == '+=' or self.tl[1].val == '-=' or self.tl[1].val == '*='  or self.tl[1].val == '/=' or self.tl[1].val == '%='):
             name = self.pop().val
-            self.pop()
+            op = self.pop().val
             val = self.expr()
+            if op[0] != '=':
+                op = op[0]
+                return ast.Assign(name, ast.Binary(ast.Variable(name), op, val))
             return ast.Assign(name, val)
         else:
             return self.expr()
