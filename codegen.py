@@ -387,6 +387,23 @@ class Codegen:
             else:
                 raise ValueError(f"Error: Type {ty} incompatable with == in {ex}")
             return Value(name,"i1","unnamed",("bool",None))
+        elif ex.op == "&&":
+            lhsTempName = "%"+se.e.getName()
+            rhsTempName = "%"+se.e.getName()
+            #no real reason that each side couldn't be a different type
+            #but also no real reason that you would want that i think
+            self.e.emmit(f"{lhsTempName} == icmp ne {ty} {lhs.val} 0")
+            self.e.emmit(f"{rhsTempName} == icmp ne {ty} {rhs.val} 0")
+            self.e.emmit(f"{name} = and i1 {lhs.val}, {rhs.val}")
+        elif ex.op == "||":
+            lhsTempName = "%"+se.e.getName()
+            rhsTempName = "%"+se.e.getName()
+            #no real reason that each side couldn't be a different type
+            #but also no real reason that you would want that i think
+            self.e.emmit(f"{lhsTempName} == icmp ne {ty} {lhs.val} 0")
+            self.e.emmit(f"{rhsTempName} == icmp ne {ty} {rhs.val} 0")
+            self.e.emmit(f"{name} = or i1 {lhs.val}, {rhs.val}")
+
         elif ex.op == "<":
             if ty == "float" or ty == "double":
                 self.e.emit(f"{name} = fcmp olt {ty} {lhs.val}, {rhs.val}")

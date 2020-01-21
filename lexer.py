@@ -132,6 +132,27 @@ class Lex:
                         self.add('kwd', '==')
                     else:
                         self.add('kwd', '=')
+            elif ch == '&':
+                self.junk()
+                if len(self.in_str) == 0:
+                    self.add('kwd', '&')
+                else:
+                    if self.in_str[0] == '&':
+                        self.junk()
+                        self.add('kwd', '&&')
+                    else:
+                        self.add('kwd', '&')
+            elif ch == '|':
+                self.junk()
+                if len(self.in_str) == 0:
+                    self.add('kwd', '|')
+                else:
+                    if self.in_str[0] == '|':
+                        self.junk()
+                        self.add('kwd', '||')
+                    else:
+                        self.add('kwd', '|')
+
             #TODO: add strings and chars
 
             elif ch.isnumeric() or ch == ".":
@@ -181,7 +202,6 @@ class Lex:
             self.add('type','long')
         else:
             self.add('ident', buff)
-       #TODO: add: and, or, for, null
 
     def lex_number(self): #these also just add to the token list directly
         buff = ''
