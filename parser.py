@@ -214,6 +214,24 @@ class Parser:
             condition = self.expr()
             body = self.statementlist("while body",line)
             return ast.While(condition,body)
+        #kinda a hack but that's the world we live in jimbo
+        elif self.match_val('*'):
+            derefs = 1
+
+            while(self.tl[derefs].val == '*'):
+                derefs += 1
+            t = self.tl[derefs+1].val
+            if (t == '=' or t[1] == '=')and self.tl[derefs].type == 'ident':
+                self.tl = self.tl[derefs:]
+                name = self.pop().val
+                op = self.pop().val
+                val = self.expr()
+                if op[0] != '=':
+                    op = op[0]
+                    return ast.Assign(name, ast.Binary(ast.Variable(name), op, val), derefs)
+                return ast.Assign(name, val, derefs)
+
+
         elif self.match('ident') and (self.tl[1].val == '=' or self.tl[1].val == '+=' or self.tl[1].val == '-=' or self.tl[1].val == '*='  or self.tl[1].val == '/=' or self.tl[1].val == '%='):
             name = self.pop().val
             op = self.pop().val

@@ -140,6 +140,15 @@ class Codegen:
     def codegenAssign(self,s):
         lhs = self.e.getLLVariable(s.lhs)
         rhs = self.codegenExpr(s.rhs)
+        while(s.derefs):
+            nextTy = lhs.lltype[:-1]
+            loadTmp = "%"+self.e.getName()
+            self.e.emit(f"{loadTmp}= load {nextTy}, {lhs.lltype} {lhs.val}")
+            lhs.lltype = nextTy
+            lhs.val = loadTmp
+            s.derefs -= 1
+        if lhs.lltype[-1] != '*':
+            raise ValueError(f"cannot store into a variable that has be dereferenced to base type {ty} in {s}")
         if lhs.category != "var":
             raise ValueError(f"can't re-assign non-var variables. {s}")
         if rhs.isLit:

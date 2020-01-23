@@ -7,8 +7,6 @@ Hopefully it will fall into some overlap between D/C++, rust, and maybe haskell.
 
 #### A quick list of things to implement (in order of intent to implement)
 
-* logic operators (&& and ||)
-* dereferences in lhs of assignment (e.g \*x= 1)
 * arrays
 * strings
 * imports

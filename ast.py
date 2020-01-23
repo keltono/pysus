@@ -118,11 +118,21 @@ class Var(Statement):
         return f"var {self.type} {self.name} = {self.val}"
 
 class Assign(Statement): #for re assignment of a var. doesn't make sense for it to be an expr now
-    def __init__(self, lhs, rhs):
+    def __init__(self, lhs, rhs, derefs=0):
         self.lhs = lhs
         self.rhs = rhs
+        self.derefs = derefs
+        r = ""
+        while(derefs):
+            r+="*"
+            derefs -= 1
+            #i'm paranoid enough to catch this, but not so paranoid as to give a helpful message
+            if derefs < 0:
+                raise ValueError("how?")
+        self.derefStr = r
+
     def __repr__(self):
-        return f"{self.lhs} = {self.rhs}"
+        return f"{self.derefStr}{self.lhs} = {self.rhs}"
 
 class If(Statement):
     def __init__(self, condition, thenbody, elsebody=None):
