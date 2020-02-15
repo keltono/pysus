@@ -23,12 +23,14 @@ If i were to start this project again today, I'd probably choose OCaml or haskel
 
 #### A quick list of things to implement (in order of intent to implement)
 
+* chars
 * strings
 * ((singly) linked) lists
 * A module system
 * imports
 * basic runtime library
 	* malloc / free 
+* for (each) loops
 * structures / user defined types
 * lambdas/closures
 * first class functions

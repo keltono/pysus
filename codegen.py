@@ -331,10 +331,10 @@ class Codegen:
             if ty == "float" or ty == "double":
                 self.e.emit(f"{name} = fadd {ty} {lhs.val}, {rhs.val}")
             elif ty[-1] == '*':
-                if rhs.type[0] == 'pointer' or rhs.type[0] == 'array':
+                if rhs.type[0] == 'pointer':
                     self.e.emit(f"{name} = getelementptr {ty[:-1]}, {ty} {rhs.val}, {lhs.lltype} {lhs.val}")
                     return Value(name,ty, rhs.category, rhs.type)
-                elif lhs.type[0] == 'pointer' or rhs.type[0] == 'array':
+                elif lhs.type[0] == 'pointer':
                     self.e.emit(f"{name} = getelementptr {ty[:-1]}, {ty} {lhs.val}, {rhs.lltype} {rhs.val}")
                     return Value(name,ty, lhs.category, lhs.type)
                 else:
