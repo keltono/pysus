@@ -135,12 +135,14 @@ class Codegen:
             if self.canConvert(expr, varLLType):
                 ty = varLLType
             else:
+                print(f"exprType = '{expr.lltype}'")
+                print(f"varLLtype = '{varLLType}'")
                 raise ValueError(f"Expected a {varLLType} in var delcaration in {self.e.currentScope.name[1]}, saw {expr}")
         varName = "%"+self.e.getName()
         #TODO trampolines might require a spesific alignment (that isn't 1) idk.
         self.e.emit(f"{varName} = alloca {ty}, align 1")
         self.e.emit(f"store {ty} {expr.val}, {ty}* {varName}, align 1")
-        self.e.addVariable(s.name, varName, ty+"*", "var",s.type, expr.isLit)
+        self.e.addVariable(s.name, varName, ty+"*", "var", s.type, expr.isLit)
 
     def codegenAssign(self,s):
         lhs = self.codegenExpr(s.lhs).lvalue
@@ -487,13 +489,13 @@ class Codegen:
             self.e.emit(f"{arrayPtr} = alloca {arrayType}, align 4")
 
             gepName = "%"+self.e.getName()
-            self.e.emit(f"{gepName}0 = getelementptr {arrayType}, {arrayType}* {arrayPtr}, i64 0, i64 0 ")
-            self.e.emit("store {exprList[0].lltype} {exprList[0].val}, align 1")
+            self.e.emit(f"{gepName}_init = getelementptr {arrayType}, {arrayType}* {arrayPtr}, i64 0, i64 0 ")
+            self.e.emit(f"store {exprList[0].lltype} {exprList[0].val}, align 1")
             exprList = exprList[1:]
             for index, expr in enumerate(exprList):
-                self.e.emit(f"{gepName}{index+1} = getelementptr {arrayType}, {arrayType}* {gepName}0, i64 {index+1}")
-                self.e.emit("store {exprList[index+1].lltype} {exprList[index+1].val}, align 1")
-            return Value(arrayPtrt, arrayType+"*", "unnamed", ("array", (len(exprList), exprList[0].type)), True)
+                self.e.emit(f"{gepName}{index} = getelementptr {arrayType}, {arrayType}* {gepName}0, i64 0, i64 {index+1}")
+                self.e.emit(f"store {exprList[index].lltype} {exprList[index].val}, {exprList[index].lltype}* {gepName}{index} align 1")
+            return Value(arrayPtr, arrayType+"*", "unnamed", ("array", (len(exprList), exprList[0].type)), True)
         else:
             raise ValueError(f"what the heck is this? I expected a literal of *some kind* but i saw {ex.val} in {ex}")
 
@@ -566,6 +568,8 @@ class Codegen:
                 return typeTo[0] == 'i'
             elif value.lltype == "double":
                 return typeTo == "float" or typeTo == "double"
+            else:
+                return value.lltype == typeTo
         #in theory
         else:
             return value.lltype == typeTo

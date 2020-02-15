@@ -95,7 +95,7 @@ class Parser:
         if self.tl[0].val == cons:
             self.pop()
             return
-        raise ValueError(err)
+        raise ValueError(err + f" instead saw {self.pop()}.")
 
     def pop(self):
         top = self.tl[0]
@@ -153,7 +153,7 @@ class Parser:
             if self.match_val('}'):
                 break
             if not self.previous.val == '}':
-                self.consume('\n', "expected new line after statement on line {self.tl[0].line}")
+                self.consume('\n', f"expected new line after statement on line {self.tl[0].line}")
         self.pop()
         return stmntlist
 
@@ -180,7 +180,6 @@ class Parser:
 
         elif self.match("var"):
             line = self.pop().line
-            #TODO add proper type parsing (pointers, arrays, custom types, etc)
             ty = self.type()
             if self.match_val("="):
                 name = ty[0]
@@ -214,24 +213,13 @@ class Parser:
             condition = self.expr()
             body = self.statementlist("while body",line)
             return ast.While(condition,body)
-        #FIXME the logic for the lhs of assignments needs serious work. not sure what the kosher way of doing something like this is.
-        #I guess make it (kinda) backtracking in that very paticular instance, like if nothing else applies, attempt to parse an assign, if that fails, parse an expr
-        #(would have to not modify the stack in that case, but ya know...)
-        #NOTE/TODO New party line on LHS of assignments:
-        #rather than being strange/special parser units unto themselves, they will be expressions that are type checked.
-        #so basically, at some point, the expr will be checked to see if it contains banned items, which are all items except
-        #*variable references, deref unaries, and array indexes.
         else:
             lhs = self.expr()
             if  self.match_val('=') or self.match_val('+=') or self.match_val('-=') or self.match_val('*=')  or self.match_val('/=') or self.match_val('%='):
                 op = self.pop().val
                 rhs = self.expr()
-                #this strat of "just have lhs's be exprs" is nice, but leads to a need for type checking later.
-                #i think any expression that yields a var should be allowed tbh
-                #the only real thing to deal with that idea is that Variable references not yielding a pointer should not be "vars" anymore.
                 if(op[0] != '='):
-                    op = op[0]
-                    rhs = ast.Binary(lhs, op, rhs)
+                    rhs = ast.Binary(lhs, op[0], rhs)
                 return ast.Assign(lhs,rhs)
             else:
                 return lhs
@@ -281,7 +269,7 @@ class Parser:
         expr = self.primary()
         while(self.match_val('[')):
             self.pop()
-            index = self.pop.val
+            index = self.pop().val
             self.consume(']', 'expected "]" in array index')
             # x[1] == *(1+x)
             # x[1][1] == *(1+*(1+x))
@@ -311,7 +299,9 @@ class Parser:
                     break
                 self.pop()
             if not self.match_val(']'):
-                raise ValueError(f"you ruined the array idiot! what's wrong with you? line {e.line}")
+                raise ValueError(f"you ruined the array idiot! what's wrong with you? line {self.pop().line}")
+            else:
+                self.pop()
             return ast.Literal(exprList)
         elif self.match('ident'):
             name = self.pop().val

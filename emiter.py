@@ -169,7 +169,9 @@ class Emiter:
             #semi-related: I'm going to have to think long and hard how to handle arrays at any sort of hight level
             #(e.g directly returnable by a function)
             if ty[0] == "array":
-                return f"[{(ty[1][0])} x {self.typeToLLType(ty[1][1])}]"
+                #arrays get their own level of secret pointers
+                #because we're going for a more strongly typed language, this is what we got (instead of a pointer to the first element)
+                return f"[{(ty[1][0])} x {self.typeToLLType(ty[1][1])}]" + "*"
             elif ty[0] == "pointer":
                 return self.typeToLLType(ty[1]) + "*"
             elif ty[0] == "function":
