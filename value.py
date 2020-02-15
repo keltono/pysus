@@ -2,8 +2,11 @@
 #so far: let variables, literals, var variables, functions
 class Value:
     #where category is ("function","var","let", "unnamed"). can't think of a better name.
-    def __init__(self, val, lltype, category, type,  isLit=False):
+    def __init__(self, val, lltype, category, type,  isLit=False, lvalue = None):
         self.type = type
+        #location
+        #tuple of (llval * lltype)
+        self.lvalue = lvalue
         self.lltype = lltype
         self.val = val
         self.category = category

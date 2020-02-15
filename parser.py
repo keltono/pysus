@@ -72,7 +72,7 @@ class Parser:
         self.tl = token_list
         self.previous = token_list[0]
         self.ast_list = []
-    def add_ast(self, to_add,to_junk=1):
+    def add_ast(self, to_add):
         self.ast_list.append(to_add)
     def match(self, *args):
         if len(self.tl) == 0:
@@ -214,34 +214,27 @@ class Parser:
             condition = self.expr()
             body = self.statementlist("while body",line)
             return ast.While(condition,body)
-        #kinda a hack but that's the world we live in jimbo
-        elif self.match_val('*'):
-            derefs = 1
-
-            while(self.tl[derefs].val == '*'):
-                derefs += 1
-            t = self.tl[derefs+1].val
-            if (t == '=' or t[1] == '=')and self.tl[derefs].type == 'ident':
-                self.tl = self.tl[derefs:]
-                name = self.pop().val
-                op = self.pop().val
-                val = self.expr()
-                if op[0] != '=':
-                    op = op[0]
-                    return ast.Assign(name, ast.Binary(ast.Variable(name), op, val), derefs)
-                return ast.Assign(name, val, derefs)
-
-
-        elif self.match('ident') and (self.tl[1].val == '=' or self.tl[1].val == '+=' or self.tl[1].val == '-=' or self.tl[1].val == '*='  or self.tl[1].val == '/=' or self.tl[1].val == '%='):
-            name = self.pop().val
-            op = self.pop().val
-            val = self.expr()
-            if op[0] != '=':
-                op = op[0]
-                return ast.Assign(name, ast.Binary(ast.Variable(name), op, val))
-            return ast.Assign(name, val)
+        #FIXME the logic for the lhs of assignments needs serious work. not sure what the kosher way of doing something like this is.
+        #I guess make it (kinda) backtracking in that very paticular instance, like if nothing else applies, attempt to parse an assign, if that fails, parse an expr
+        #(would have to not modify the stack in that case, but ya know...)
+        #NOTE/TODO New party line on LHS of assignments:
+        #rather than being strange/special parser units unto themselves, they will be expressions that are type checked.
+        #so basically, at some point, the expr will be checked to see if it contains banned items, which are all items except
+        #*variable references, deref unaries, and array indexes.
         else:
-            return self.expr()
+            lhs = self.expr()
+            if  self.match_val('=') or self.match_val('+=') or self.match_val('-=') or self.match_val('*=')  or self.match_val('/=') or self.match_val('%='):
+                op = self.pop().val
+                rhs = self.expr()
+                #this strat of "just have lhs's be exprs" is nice, but leads to a need for type checking later.
+                #i think any expression that yields a var should be allowed tbh
+                #the only real thing to deal with that idea is that Variable references not yielding a pointer should not be "vars" anymore.
+                if(op[0] != '='):
+                    op = op[0]
+                    rhs = ast.Binary(lhs, op, rhs)
+                return ast.Assign(lhs,rhs)
+            else:
+                return lhs
 
     #logic for parsing exprs. each function represents a grammar (or two) spesified above.
     #these multiple function deal with order of operations. lowest down in the chain (unary,mult) have highest precedence.
@@ -281,7 +274,19 @@ class Parser:
         if(self.match_val('-','!','*','&')):
             op = self.pop().val
             return ast.Unary(op, self.unary())
-        return self.primary()
+        return self.index()
+
+    #indexing is syntatic sugar for pointer arithmetic.
+    def index(self):
+        expr = self.primary()
+        while(self.match_val('[')):
+            self.pop()
+            index = self.pop.val
+            self.consume(']', 'expected "]" in array index')
+            # x[1] == *(1+x)
+            # x[1][1] == *(1+*(1+x))
+            expr = ast.Unary('*', ast.Binary(index, '+', expr))
+        return expr
 
     def primary(self):
         if self.match('int'): #this counts for ints and longs
@@ -296,6 +301,18 @@ class Parser:
         elif self.match('false'):
             self.pop()
             return (ast.Literal(False))
+        elif self.match_val('['):
+            self.pop()
+            exprList = []
+            e = None
+            while not self.match_val(']'):
+                exprList.append(e := self.expr())
+                if not self.match_val(','):
+                    break
+                self.pop()
+            if not self.match_val(']'):
+                raise ValueError(f"you ruined the array idiot! what's wrong with you? line {e.line}")
+            return ast.Literal(exprList)
         elif self.match('ident'):
             name = self.pop().val
             if(self.match_val('(')):
@@ -359,10 +376,20 @@ class Parser:
         if self.match_val('*'):
             self.pop()
             ty =  ('pointer', self.type())
-        elif self.match('ident') or self.match('type'):
-            #i don't think this will need to change when typedefs are added
+        elif (self.match('ident') or self.match('type')):
             t = self.pop().val
-            ty = (t, None)
+            arrayList = []
+            if self.match_val('['):
+                self.pop()
+                arrayList.append(e := self.expr())
+                self.consume(']', 'hey, expected "]" in array index in assn on line {e.line}.')
+                ty = (t, None)
+                for d in arrayList:
+                    ty = ('array', (d, ty))
+
+            else:
+                #i don't think this will need to change when typedefs are added
+                ty = (t, None)
         else:
             raise ValueError(f"unrecognized token {self.pop} in type parsing")
         return ty

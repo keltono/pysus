@@ -16,6 +16,7 @@ class Codegen:
         #the emiter object. This is used a lot and therefore is shortened down
         self.e = emiter.Emiter(fd)
         self.ast = ast
+        self.todos = []
 
     def codegen(self):
         for astNode in self.ast:
@@ -76,6 +77,10 @@ class Codegen:
         self.e.setIndent(-1)
         self.e.emit("}\n")
         self.e.scopeDown()
+        #this will need to be modified in the case of nested functions
+        for line in self.todos:
+            self.e.emit(line)
+        self.todos = []
 
     def codegenStatementList(self, l):
         if l != None:
@@ -130,7 +135,7 @@ class Codegen:
             if self.canConvert(expr, varLLType):
                 ty = varLLType
             else:
-                raise ValueError(f"Expected a {letLLType} in var delcaration in {self.e.currentScope.name[1]}, saw {expr}")
+                raise ValueError(f"Expected a {varLLType} in var delcaration in {self.e.currentScope.name[1]}, saw {expr}")
         varName = "%"+self.e.getName()
         #TODO trampolines might require a spesific alignment (that isn't 1) idk.
         self.e.emit(f"{varName} = alloca {ty}, align 1")
@@ -138,7 +143,7 @@ class Codegen:
         self.e.addVariable(s.name, varName, ty+"*", "var",s.type, expr.isLit)
 
     def codegenAssign(self,s):
-        lhs = self.e.getLLVariable(s.lhs)
+        lhs = self.codegenExpr(s.lhs).lvalue
         rhs = self.codegenExpr(s.rhs)
         while(s.derefs):
             nextTy = lhs.lltype[:-1]
@@ -164,19 +169,23 @@ class Codegen:
     #just adds it to the scope so that that value goes in wherever the variable is mentioned
     def codegenLet(self, s):
             #I *could* make it so you can't re-let variables, but where's the fun in that?
+            #TODO make these stored in memory like vars, but just have them be immutable.
             expr = self.codegenExpr(s.val)
-            if expr.type[0] == "pointer" or expr.category == "var":
-                raise ValueError(f"you can't use a let declaration on a pointer dummy! {s}")
-            if s.lltype == None:
+            if s.type == (None,None):
                 ty = expr.lltype
+                s.type = expr.type
             else:
                 letLLType = self.e.typeToLLType(s.type)
-                if self.canConvert(expr,letLLType):
+                if self.canConvert(expr, letLLType):
                     ty = letLLType
                 else:
-                    #probably shouldn't emit SSA values in error reporting...
-                    raise ValueError(f"Expected a {letLLType} in let delcaration in {self.e.currentScope.name[1]}, saw {expr}")
-            self.e.addVariable(s.name, expr.val, ty, "let", expr.type, expr.isLit)
+                    raise ValueError(f"Expected a {varLLType} in var delcaration in {self.e.currentScope.name[1]}, saw {expr}")
+            varName = "%"+self.e.getName()
+            #TODO trampolines might require a spesific alignment (that isn't 1) idk.
+            #TODO i guess alignment depends on the variable type (go figure.) (4 for ints, floats, 8 for long, doubles, pointers)
+            self.e.emit(f"{varName} = alloca {ty}, align 1")
+            self.e.emit(f"store {ty} {expr.val}, {ty}* {varName}, align 1")
+            self.e.addVariable(s.name, expr.val, ty+"*", "let", expr.type, expr.isLit)
 
     def codegenReturn(self, s):
             expr = self.codegenExpr(s.returning)
@@ -302,6 +311,7 @@ class Codegen:
 
         if lhs.type[0] == 'pointer' and rhs.type[0][0]=='i':
             ty = lhs.lltype
+        #TODO add arrays here (should work the same as pointers)
         elif rhs.type[0] == 'pointer' and lhs.type[0][0]=='i':
             ty = rhs.lltype
 
@@ -459,20 +469,45 @@ class Codegen:
             return Value(str(ex.val),"double", "unnamed", ("double",None), True)
         elif type(ex.val) == int:
             return Value(str(ex.val), "i32", "unnamed", ("int",None), True)
+        #NOTE due to reasons, array literals are stored in memory before being served
+        #What this does is allocate the correct size of memory, does n many GEP instructions and stores the correct values in each of those pointers
+        #eventually returns a pointer of the base type (e.g [3 x i32] -> i32*)
+        elif type(ex.val) == list:
+            #TODO make this set a flag that codegens the const after the current function is done. probably just a global state (well, class-level state) of TODOs to emmit.
+            exprList = []
+            for expr in ex.val:
+                exprList.append(self.codegenExpr(expr))
+            for expr in exprList:
+                if expr.type != exprList[0].type:
+                    raise ValueError(f"Value mismatch between terms in array literal. Saw {expr.type}, expected {exprList[0].type}")
+
+            arrayPtr = "%"+self.e.getName()
+            arrayType = f"[{len(exprList)} x {exprList[0].lltype}]"
+
+            self.e.emit(f"{arrayPtr} = alloca {arrayType}, align 4")
+
+            gepName = "%"+self.e.getName()
+            self.e.emit(f"{gepName}0 = getelementptr {arrayType}, {arrayType}* {arrayPtr}, i64 0, i64 0 ")
+            self.e.emit("store {exprList[0].lltype} {exprList[0].val}, align 1")
+            exprList = exprList[1:]
+            for index, expr in enumerate(exprList):
+                self.e.emit(f"{gepName}{index+1} = getelementptr {arrayType}, {arrayType}* {gepName}0, i64 {index+1}")
+                self.e.emit("store {exprList[index+1].lltype} {exprList[index+1].val}, align 1")
+            return Value(arrayPtrt, arrayType+"*", "unnamed", ("array", (len(exprList), exprList[0].type)), True)
         else:
             raise ValueError(f"what the heck is this? I expected a literal of *some kind* but i saw {ex.val} in {ex}")
 
     def codegenVariable(self,ex):
         var = self.e.getLLVariable(ex.name)
-        if var.category == "let" or var.category == "arg":
+        if var.category == "arg":
             return var
-        elif var.category == "var":
+        elif var.category == "var" or var.category == 'let':
             loadName = "%"+self.e.getName()
             #take off a pointer level
             loadType = var.lltype[:-1]
             self.e.emit(f"{loadName} = load {loadType}, {var.lltype} {var.val}, align 1")
             #TODO see if calling both the var pointer and the var result "var" causes issues
-            return Value(loadName, loadType, "var", var.type,False)
+            return Value(loadName, loadType, var.category, var.type, False, lvalue=var)
         else:
             raise ValueError(f"uknown category {var.category}")
 
@@ -502,7 +537,7 @@ class Codegen:
                     raise ValueError(f"no dereferencing non-pointer types in {ex}")
                 loadType = operand.lltype[:-1]
                 self.e.emit(f"{unaryName} = load {loadType}, {operand.lltype} {operand.val}, align 1")
-                return Value(unaryName, loadType, operand.category, operand.type[1], False)
+                return Value(unaryName, loadType, operand.category, operand.type[1], False, lvalue=operand)
 
         if ex.op == '&':
             #only works on named values, unlike deref

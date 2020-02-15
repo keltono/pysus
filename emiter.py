@@ -202,5 +202,9 @@ class Emiter:
     def emitLabel(self, label):
         self.fd.write(label+":\n")
 
+    #llvm-comnand spesifc declaration.
+
+
+
     def close(self):
         self.fd.close()
