@@ -269,11 +269,14 @@ class Parser:
         expr = self.primary()
         while(self.match_val('[')):
             self.pop()
-            index = self.pop().val
-            self.consume(']', 'expected "]" in array index')
+            #no variable length arrays.
+            index = self.pop()
+            if index.type != 'int':
+                raise ValueError(f"expected int in array index on line {index.line}")
+            self.consume(']', f'expected "]" in array index on line {index.line}. did you forget a comma in a list?')
             # x[1] == *(1+x)
             # x[1][1] == *(1+*(1+x))
-            expr = ast.Unary('*', ast.Binary(index, '+', expr))
+            expr = ast.Index(expr, index)
         return expr
 
     def primary(self):
@@ -362,24 +365,17 @@ class Parser:
         self.pop()
         return arg_list
     def type(self):
-        #TODO impliment arrays here
         if self.match_val('*'):
             self.pop()
             ty =  ('pointer', self.type())
         elif (self.match('ident') or self.match('type')):
             t = self.pop().val
-            arrayList = []
-            if self.match_val('['):
+            ty = (t, None)
+            while self.match_val('['):
                 self.pop()
-                arrayList.append(e := self.expr())
+                index = self.expr()
                 self.consume(']', 'hey, expected "]" in array index in assn on line {e.line}.')
-                ty = (t, None)
-                for d in arrayList:
-                    ty = ('array', (d, ty))
-
-            else:
-                #i don't think this will need to change when typedefs are added
-                ty = (t, None)
+                ty = ('array', (index, ty))
         else:
             raise ValueError(f"unrecognized token {self.pop} in type parsing")
         return ty

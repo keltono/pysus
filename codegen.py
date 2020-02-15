@@ -120,6 +120,8 @@ class Codegen:
             return self.codegenCall(ex)
         elif t == ast.Unary:
             return self.codegenUnary(ex)
+        elif t == ast.Index:
+            return self.codegenIndex(ex)
         elif t == ast.Binary:
             return self.codegenBinary(ex)
         else:
@@ -329,10 +331,10 @@ class Codegen:
             if ty == "float" or ty == "double":
                 self.e.emit(f"{name} = fadd {ty} {lhs.val}, {rhs.val}")
             elif ty[-1] == '*':
-                if rhs.type[0] == 'pointer':
+                if rhs.type[0] == 'pointer' or rhs.type[0] == 'array':
                     self.e.emit(f"{name} = getelementptr {ty[:-1]}, {ty} {rhs.val}, {lhs.lltype} {lhs.val}")
                     return Value(name,ty, rhs.category, rhs.type)
-                elif lhs.type[0] == 'pointer':
+                elif lhs.type[0] == 'pointer' or rhs.type[0] == 'array':
                     self.e.emit(f"{name} = getelementptr {ty[:-1]}, {ty} {lhs.val}, {rhs.lltype} {rhs.val}")
                     return Value(name,ty, lhs.category, lhs.type)
                 else:
@@ -475,7 +477,6 @@ class Codegen:
         #What this does is allocate the correct size of memory, does n many GEP instructions and stores the correct values in each of those pointers
         #eventually returns a pointer of the base type (e.g [3 x i32] -> i32*)
         elif type(ex.val) == list:
-            #TODO make this set a flag that codegens the const after the current function is done. probably just a global state (well, class-level state) of TODOs to emmit.
             exprList = []
             for expr in ex.val:
                 exprList.append(self.codegenExpr(expr))
@@ -496,7 +497,7 @@ class Codegen:
             for index, expr in enumerate(exprList):
                 self.e.emit(f"{gepName}_arr_{index} = getelementptr {elemType}, {elemType}* {gepName}_arr_init, i64 {index+1}")
                 self.e.emit(f"store {elemType} {exprList[index].val}, {elemType}* {gepName}_arr_{index}, align 1")
-            return Value(arrayPtr, arrayType+"*", "unnamed", ("array", (len(exprList), exprList[0].type)), True)
+            return Value(arrayPtr, arrayType+"*", "unnamed", ("array", (len(exprList)+1, exprList[0].type)), True)
         else:
             raise ValueError(f"what the heck is this? I expected a literal of *some kind* but i saw {ex.val} in {ex}")
 
@@ -514,6 +515,27 @@ class Codegen:
         else:
             raise ValueError(f"uknown category {var.category}")
 
+    def codegenIndex(self, ex):
+        arr = self.codegenExpr(ex.op)
+        if arr.type[0] != 'array':
+            raise ValueError(f"no indexing non-array variables in {ex}")
+        indexName = "%"+self.e.getName()
+        #arrays types generally corrospond to array ptrs in llvm
+        #actually will get  a element_type* which can be stored in directly
+        ptrType = arr.lltype
+        arrType = arr.lltype[:-1]
+        #should be elem type...
+        elemType = self.e.typeToLLType(arr.type[1][1])
+        elemTypePtr = elemType+"*"
+        self.e.emit(f"{indexName} = getelementptr {arrType}, {ptrType} {arr.val}, i64 0, i64 {ex.index.val}")
+
+        loadName = "%"+self.e.getName()
+
+        #TODO meaningful alignment
+        self.e.emit(f"{loadName} = load {elemType}, {elemTypePtr} {indexName}, align 1")
+
+        #FIXME idk if cateogry is *actually* maintained
+        return Value(loadName, elemType, arr.category, arr.type[1][1],lvalue = Value(indexName, elemTypePtr, arr.category, arr.type[1][1], False))
     def codegenUnary(self, ex):
         unaryName = "%"+self.e.getName()
         if ex.op == '-' or ex.op == '!' or ex.op =='*':

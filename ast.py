@@ -35,6 +35,13 @@ class Literal(Expr):
     def __str__(self):
         return str(self.val)
 
+class Index(Expr):
+    def __init__(self, op, index):
+        self.op = op
+        self.index = index
+    def __repr__(self):
+        return f"{self.op}[{self.index}]"
+
 class Binary(Expr):
     def __init__(self, lhs, op, rhs):
         #probably should have gone with a statically typed language... this is worryingly easy
