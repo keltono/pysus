@@ -489,12 +489,13 @@ class Codegen:
             self.e.emit(f"{arrayPtr} = alloca {arrayType}, align 4")
 
             gepName = "%"+self.e.getName()
-            self.e.emit(f"{gepName}_init = getelementptr {arrayType}, {arrayType}* {arrayPtr}, i64 0, i64 0 ")
-            self.e.emit(f"store {exprList[0].lltype} {exprList[0].val}, align 1")
+            elemType = exprList[0].lltype
+            self.e.emit(f"{gepName}_arr_init = getelementptr {arrayType}, {arrayType}* {arrayPtr}, i64 0, i64 0 ")
+            self.e.emit(f"store {elemType} {exprList[0].val}, {elemType}* {gepName}_arr_init, align 1")
             exprList = exprList[1:]
             for index, expr in enumerate(exprList):
-                self.e.emit(f"{gepName}{index} = getelementptr {arrayType}, {arrayType}* {gepName}0, i64 0, i64 {index+1}")
-                self.e.emit(f"store {exprList[index].lltype} {exprList[index].val}, {exprList[index].lltype}* {gepName}{index} align 1")
+                self.e.emit(f"{gepName}_arr_{index} = getelementptr {elemType}, {elemType}* {gepName}_arr_init, i64 {index+1}")
+                self.e.emit(f"store {elemType} {exprList[index].val}, {elemType}* {gepName}_arr_{index}, align 1")
             return Value(arrayPtr, arrayType+"*", "unnamed", ("array", (len(exprList), exprList[0].type)), True)
         else:
             raise ValueError(f"what the heck is this? I expected a literal of *some kind* but i saw {ex.val} in {ex}")

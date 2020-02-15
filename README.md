@@ -23,7 +23,6 @@ If i were to start this project again today, I'd probably choose OCaml or haskel
 
 #### A quick list of things to implement (in order of intent to implement)
 
-* (stack) arrays
 * strings
 * ((singly) linked) lists
 * A module system
