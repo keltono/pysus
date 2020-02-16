@@ -28,6 +28,19 @@ class Lex:
                 self.junk()
             elif ch == ' ' or ch == '\r' or ch == '\t' :
                 self.junk() #trash white space
+            elif ch == "'":
+                self.junk()
+                if self.in_str[0] == "'":
+                    raise ValueError("Character literals may not be empty on line {self.lineno}")
+                c = self.in_str[0]
+                self.junk()
+                if self.in_str[0] != "'":
+                    raise ValueError("Character literals must terminate: line {self.lineno}")
+                self.junk()
+                self.add('char',c)
+            elif ch == '"':
+                self.junk()
+                self.lex_string()
             elif ch == '/':
                 self.junk()
                 if (not self.in_str):
@@ -44,8 +57,6 @@ class Lex:
                         self.add('kwd','/=')
                     else:
                         self.add('kwd','/')
-
-
             elif ch == '+': #TODO add +=
                 self.junk()
                 if len(self.in_str) == 0:
@@ -220,6 +231,13 @@ class Lex:
     def lex_comment(self):
         while(self.in_str[0] != '\n' and self.in_str[0] != '\r'):
             self.junk()
+    def lex_string(self):
+        s = ""
+        while(self.in_str[0] != '"'):
+            s += self.in_str[0]
+            self.junk()
+        self.add("string", s)
+        self.junk()
     def lex_multi_comment(self):
         while(self.in_str[0] != '*' and self.in_str[1] != '/'):
             self.junk()

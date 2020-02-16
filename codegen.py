@@ -473,6 +473,8 @@ class Codegen:
             return Value(str(ex.val),"double", "unnamed", ("double",None), True)
         elif type(ex.val) == int:
             return Value(str(ex.val), "i32", "unnamed", ("int",None), True)
+        elif type(ex.val) == str and len(ex.val) == 1:
+            return Value(ord(ex.val), "i8", "unnamed", ("char",None), True)
         #NOTE due to reasons, array literals are stored in memory before being served
         #What this does is allocate the correct size of memory, does n many GEP instructions and stores the correct values in each of those pointers
         #eventually returns a pointer of the base type (e.g [3 x i32] -> i32*)

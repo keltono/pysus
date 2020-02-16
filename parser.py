@@ -292,6 +292,8 @@ class Parser:
         elif self.match('false'):
             self.pop()
             return (ast.Literal(False))
+        elif self.match('char'):
+            return ast.Literal(self.pop().val)
         elif self.match_val('['):
             self.pop()
             exprList = []
