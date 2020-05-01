@@ -40,8 +40,8 @@ formal(ish) grammar
          | <unary> / <unary>
          | <unary>
 
-<unary> ::= -<primary>
-          | !<primary>
+<unary> ::= -<unary>
+          | !<unary>
           | <pimary>
 
 <primary> ::= ID
