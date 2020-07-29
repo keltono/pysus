@@ -25,6 +25,6 @@ except IndexError:
 
 cdg.codegen()
 
-cdg.close()
+cdg.e.close()
 
 

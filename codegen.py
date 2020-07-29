@@ -11,6 +11,8 @@ import ast
 import emiter
 from value import Value
 
+codegen_later = []
+
 class Codegen:
     def __init__(self,fd,ast):
         #the emiter object. This is used a lot and therefore is shortened down
@@ -26,6 +28,10 @@ class Codegen:
             else:
                #only defs at the top level for now. I'll probably allow global variables at some point.
                raise ValueError(f"Expected a function defintion on the top level, saw {astNode}")
+        self.e.emit_to_top_of_file(codegen_later,".ll") #need to make this extension stuff not bad at some point
+        self.e.close()
+        
+        
 
     #takes in an ast.Def object, emits, returns nothing
     def codegenDef(self,d):
@@ -465,7 +471,7 @@ class Codegen:
             raise ValueError(f"unrecognized operation {ex.op} in {ex}")
 
     def codegenLiteral(self, ex):
-        #TODO string and char literals
+        print(ex)
         if ex.val == True and type(ex.val) == bool:
             return Value("1","i1","unnamed",("bool",None),True)
         elif ex.val == False and type(ex.val) == bool:
@@ -476,10 +482,25 @@ class Codegen:
             return Value(str(ex.val), "i32", "unnamed", ("int",None), True)
         elif type(ex.val) == str and len(ex.val) == 1:
             return Value(ord(ex.val), "i8", "unnamed", ("char",None), True)
+        elif type(ex.val) == str: #this is so dumb. I'll keep it for now, but this is just really stupid
+            arrayLen = len(ex.val)+1
+            arrayPtr = "%"+self.e.getName()
+            arrayType = f"[{arrayLen} x i8]"
+            self.e.emit(f"{arrayPtr} = alloca {arrayType}, align 1")
+
+            ptrPtr = "%"+self.e.getName()
+            self.e.emit(f"{ptrPtr} = bitcast {arrayType}* {arrayPtr} to i8*")
+            self.e.emit(f"call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 1 {ptrPtr}, i8* align 1 getelementptr inbounds ({arrayType}, {arrayType}* @__const.main.{ptrPtr[1:]}, i32 0, i32 0), i64 {arrayLen}, i1 false)")
+            codegen_later.append( f"@__const.main.{ptrPtr[1:]} = private unnamed_addr constant {arrayType} c\"{ex.val}\\00\", align 1 " )
+            codegen_later.append("declare void @llvm.memcpy.p0i8.p0i8.i64(i8* noalias nocapture writeonly, i8* noalias nocapture readonly, i64, i1 immarg)")
+
+            return Value(arrayPtr, arrayType+"*", "unnamed", ("array", (arrayLen, ("char",None))), True)
+            
+
         #NOTE due to reasons, array literals are stored in memory before being served
         #What this does is allocate the correct size of memory, does n many GEP instructions and stores the correct values in each of those pointers
         #eventually returns a pointer of the base type (e.g [3 x i32] -> i32*)
-        elif type(ex.val) == list:
+        elif type(ex.val) == list: #FIXME wow this is bad
             exprList = []
             for expr in ex.val:
                 exprList.append(self.codegenExpr(expr))
@@ -501,6 +522,7 @@ class Codegen:
                 self.e.emit(f"{gepName}_arr_{index} = getelementptr {elemType}, {elemType}* {gepName}_arr_init, i64 {index+1}")
                 self.e.emit(f"store {elemType} {exprList[index].val}, {elemType}* {gepName}_arr_{index}, align 1")
             return Value(arrayPtr, arrayType+"*", "unnamed", ("array", (len(exprList)+1, exprList[0].type)), True)
+        # elif 
         else:
             raise ValueError(f"what the heck is this? I expected a literal of *some kind* but i saw {ex.val} in {ex}")
 
@@ -520,6 +542,10 @@ class Codegen:
 
     def codegenIndex(self, ex):
         arr = self.codegenExpr(ex.op)
+        print(ex)
+        print(arr)
+        print(arr.type)
+        print(arr.type[1])
         if arr.type[0] != 'array':
             raise ValueError(f"no indexing non-array variables in {ex}")
         indexName = "%"+self.e.getName()
@@ -599,5 +625,3 @@ class Codegen:
         #in theory
         else:
             return value.lltype == typeTo
-    def close(self):
-        self.e.close()

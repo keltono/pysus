@@ -24,6 +24,7 @@ If i were to start this project again today, I'd probably choose OCaml or haskel
 - arrays
 - while loops
 - if statements
+- type inference for variables
 
 ## TODOS:
 #### A quick list of things to implement (in order of intent to implement)
@@ -33,12 +34,11 @@ If i were to start this project again today, I'd probably choose OCaml or haskel
 * ((singly) linked) lists
 * strings (list based)
 * A module system
-* basic runtime library
-	* malloc / free 
+* basic runtime library 
+	* malloc / free (sadly...)
 * for (each) loops
 * structures / user defined types
 * lambdas/closures
-* first class functions
 * typeclasses
 * pattern matching
 * currying

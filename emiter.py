@@ -203,10 +203,14 @@ class Emiter:
 
     def emitLabel(self, label):
         self.fd.write(label+":\n")
-
-    #llvm-comnand spesifc declaration.
-
-
+    def emit_to_top_of_file(self,lines,ext):
+        self.close()
+        self.fd = open(self.outFile+ext,"r+")
+        content = self.fd.read()
+        self.fd.seek(0,0)
+        for line in lines:
+            self.fd.write(line.rstrip('\r\n') + '\n')
+        self.fd.write(content)
 
     def close(self):
         self.fd.close()

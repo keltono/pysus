@@ -295,6 +295,8 @@ class Parser:
             return (ast.Literal(False))
         elif self.match('char'):
             return ast.Literal(self.pop().val)
+        elif self.match('string'):
+            return ast.Literal(self.pop().val)
         elif self.match_val('['):
             self.pop()
             exprList = []
@@ -323,7 +325,7 @@ class Parser:
             return expr
         else:
             tok = self.pop()
-            raise ValueError(f"invalid token '{tok.val}' in expr on line {tok.line}")
+            raise ValueError(f"invalid token '{tok.val}' of type '{tok.type}' in expr on line {tok.line}")
 
     #not sure how to differentiate between '('<expr>')' and a tuple in parsing...
     #I guess you just have to iterate over all of the tokens between the parens and see if there's a comma.
