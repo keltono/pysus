@@ -46,7 +46,7 @@ class Codegen:
         if d.args != []:
             llname = "%"+self.e.getName()
             lltype = self.e.typeToLLType(d.args[0][0])
-            self.e.addVariable(d.args[0][1], llname, lltype, "arg", args[0][0])
+            self.e.addVariable(d.args[0][1], llname, lltype, "arg", d.args[0][0])
             defline +=f"{lltype} {llname}"
             d.args = d.args[1:]
             for arg in d.args:
@@ -129,7 +129,7 @@ class Codegen:
 
     def codegenVar(self,s):
         expr = self.codegenExpr(s.val)
-        if s.type == (None,None):
+        if s.type == None:
             ty = expr.lltype
             s.type = expr.type
         else:
@@ -175,10 +175,11 @@ class Codegen:
             #I *could* make it so you can't re-let variables, but where's the fun in that?
             #TODO make these stored in memory like vars, but just have them be immutable.
             expr = self.codegenExpr(s.val)
-            if s.type == (None,None):
+            if s.type == None:
                 ty = expr.lltype
                 s.type = expr.type
             else:
+                print(s.type)
                 letLLType = self.e.typeToLLType(s.type)
                 if self.canConvert(expr, letLLType):
                     ty = letLLType

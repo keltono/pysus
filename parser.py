@@ -65,6 +65,7 @@ formal(ish) grammar
 <arg> ::= <type> ID
 
 """
+#This is kinda bad. Just use a parser generator next time.
 
 class Parser:
     def __init__(self, token_list):
@@ -164,7 +165,7 @@ class Parser:
             ty = self.type()
             if self.match_val("="):
                 name = ty[1]
-                ty = (None,None)
+                ty = None
                 #this is where more complete type parsing would happen
                 #for the time being, just error out
             elif self.match("ident"):
@@ -183,7 +184,7 @@ class Parser:
             ty = self.type()
             if self.match_val("="):
                 name = ty[0]
-                ty = (None,None)
+                ty = None
                 #this is where more complete type parsing would happen
                 #for the time being, just error out
             elif self.match("ident"):
@@ -355,7 +356,7 @@ class Parser:
             ty = self.type()
 
             if self.match('ident'):
-                arg_list.append(ty,self.pop().val)
+                arg_list.append((ty,self.pop().val))
             else:
                 raise ValueError(f"expected arg name in {name} function definition, saw {self.tl[0].val} on line {self.tl[0].line}")
             if(self.match_val(',')):

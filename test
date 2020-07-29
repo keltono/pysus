@@ -1,0 +1,5 @@
+; ModuleID = 'test'
+
+define i32 @main() {
+t_0x0_entry:
+	%t_0x1_return = alloca i32 
