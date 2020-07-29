@@ -492,7 +492,8 @@ class Codegen:
             self.e.emit(f"{ptrPtr} = bitcast {arrayType}* {arrayPtr} to i8*")
             self.e.emit(f"call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 1 {ptrPtr}, i8* align 1 getelementptr inbounds ({arrayType}, {arrayType}* @__const.main.{ptrPtr[1:]}, i32 0, i32 0), i64 {arrayLen}, i1 false)")
             codegen_later.append( f"@__const.main.{ptrPtr[1:]} = private unnamed_addr constant {arrayType} c\"{ex.val}\\00\", align 1 " )
-            codegen_later.append("declare void @llvm.memcpy.p0i8.p0i8.i64(i8* noalias nocapture writeonly, i8* noalias nocapture readonly, i64, i1 immarg)")
+            if "declare void @llvm.memcpy.p0i8.p0i8.i64(i8* noalias nocapture writeonly, i8* noalias nocapture readonly, i64, i1 immarg) #1" not in codegen_later:
+                codegen_later.append("declare void @llvm.memcpy.p0i8.p0i8.i64(i8* noalias nocapture writeonly, i8* noalias nocapture readonly, i64, i1 immarg)")
 
             return Value(arrayPtr, arrayType+"*", "unnamed", ("array", (arrayLen, ("char",None))), True)
             

@@ -28,7 +28,6 @@ If i were to start this project again today, I'd probably choose OCaml or haskel
 
 ## TODOS:
 #### A quick list of things to implement (in order of intent to implement)
-* string literals (char[])
 * inline assembly
   * ability for inline assembly to interact with pysus variables
 * ((singly) linked) lists
